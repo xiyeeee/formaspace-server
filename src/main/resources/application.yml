@@ -1,0 +1,70 @@
+spring:
+  application:
+    name: formaspace-server
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/formaspace?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&preserveInstants=true&characterEncoding=UTF-8}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: never
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    clean-disabled: true
+    validate-on-migrate: true
+    baseline-on-migrate: false
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    test-connection: false
+    properties:
+      "[mail.smtp.auth]": ${SMTP_AUTH:true}
+      "[mail.smtp.starttls.enable]": ${SMTP_STARTTLS:true}
+      "[mail.smtp.starttls.required]": ${SMTP_STARTTLS:true}
+      "[mail.smtp.ssl.enable]": ${SMTP_SSL:false}
+      "[mail.smtp.connectiontimeout]": 5000
+      "[mail.smtp.timeout]": 5000
+      "[mail.smtp.writetimeout]": 5000
+  web:
+    error:
+      include-message: never
+      include-stacktrace: never
+      include-binding-errors: never
+      include-exception: false
+  jackson:
+    time-zone: UTC
+    deserialization:
+      fail-on-unknown-properties: true
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8080}
+  forward-headers-strategy: none
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    default-enum-type-handler: com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+  type-handlers-package: com.xiye.formaspace.config
+  global-config:
+    db-config:
+      id-type: auto
+formaspace:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+  email-code:
+    enabled: false
+    hmac-key: ${AUTH_CODE_HMAC_KEY:}
+    from: ${SMTP_FROM:}
+    ttl: 10m
+    cooldown: 60s
+    max-failed-attempts: 5
+    max-sends-per-email-per-hour: 5
+    max-sends-per-ip-per-hour: 20
+logging:
+  level:
+    org.springframework.web: INFO
+    org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: WARN
