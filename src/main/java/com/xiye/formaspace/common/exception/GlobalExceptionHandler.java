@@ -40,6 +40,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(code.getHttpStatus()).body(ApiResponse.failure(code.name(), code.getMessage()));
     }
 
+    @Override
+    protected ResponseEntity<Object> handleMaxUploadSizeExceededException(
+            org.springframework.web.multipart.MaxUploadSizeExceededException exception, HttpHeaders headers,
+            HttpStatusCode status, WebRequest request) {
+        var code = ErrorCode.FILE_TOO_LARGE;
+        return ResponseEntity.status(code.getHttpStatus()).body(ApiResponse.failure(code.name(), code.getMessage()));
+    }
+
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<Object> handleConstraintViolation(ConstraintViolationException exception) {
         return ResponseEntity.badRequest().body(ApiResponse.failure(

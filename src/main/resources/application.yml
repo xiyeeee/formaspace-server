@@ -64,6 +64,35 @@ formaspace:
     max-failed-attempts: ${EMAIL_CODE_MAX_FAILURES:5}
     max-sends-per-email-per-hour: ${EMAIL_CODE_EMAIL_HOURLY:5}
     max-sends-per-ip-per-hour: ${EMAIL_CODE_IP_HOURLY:20}
+  storage:
+    root: ${FILE_STORAGE_ROOT:${user.home}/.formaspace/storage}
+    max-upload-bytes: ${UPLOAD_MAX_BYTES:10485760}
+    max-image-pixels: ${UPLOAD_MAX_PIXELS:16000000}
+    max-model-bytes: ${MODEL_MAX_BYTES:104857600}
+  generation:
+    mode: ${INFERENCE_MODE:DISABLED}
+    max-active-per-user: ${GENERATION_MAX_ACTIVE_PER_USER:1}
+    mock-concurrency: ${MOCK_CONCURRENCY:1}
+    mock-stage-delay: ${MOCK_STAGE_DELAY:2s}
+    mock-poll-delay-ms: ${MOCK_POLL_DELAY_MS:1000}
+    mock-demo-glb: ${MOCK_DEMO_GLB:}
+    profile-id: mock-v1
+    minimum-steps: 1
+    maximum-steps: 20
+    minimum-guidance: 0
+    maximum-guidance: 10
+    octree-resolutions: [128, 256]
+    maximum-voxel-steps: 268435456
+    num-chunks: 8000
+    quality-presets:
+      STANDARD:
+        inference-steps: 5
+        guidance-scale: 5
+        octree-resolution: 128
+      HIGH:
+        inference-steps: 10
+        guidance-scale: 5
+        octree-resolution: 256
   jwt:
     secret: ${JWT_SECRET}
     issuer: ${JWT_ISSUER:formaspace-server}

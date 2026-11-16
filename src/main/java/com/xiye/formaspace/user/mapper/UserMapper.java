@@ -7,6 +7,9 @@ import org.apache.ibatis.annotations.*;
 
 @Mapper
 public interface UserMapper extends BaseMapper<UserEntity> {
+    @Select("SELECT id FROM fs_user WHERE id = #{id} AND status = 'ACTIVE' FOR UPDATE")
+    Long lockActiveIdentity(@Param("id") long id);
+
     @Select("SELECT * FROM fs_user WHERE email = #{email}")
     UserEntity findByEmail(@Param("email") String email);
 

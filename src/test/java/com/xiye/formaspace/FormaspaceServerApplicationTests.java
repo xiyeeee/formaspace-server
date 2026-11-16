@@ -134,7 +134,7 @@ class FormaspaceServerApplicationTests {
         ApiResponse<com.xiye.formaspace.generation.vo.GenerationTaskVO> task() {
             return ApiResponse.success(new com.xiye.formaspace.generation.vo.GenerationTaskVO(
                     "9223372036854775807", "1", com.xiye.formaspace.generation.enums.GenerationStatus.PENDING,
-                    null, null, null, null, java.time.Instant.parse("2026-11-16T01:02:03Z"), null));
+                    null, false, null, null, null, null, null, java.time.Instant.parse("2026-11-16T01:02:03Z"), null, null));
         }
 
         @GetMapping("/test/conflict")

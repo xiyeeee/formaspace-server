@@ -16,6 +16,16 @@ public class GenerationTaskEntity {
     private Long sourceFileId;
     private String provider;
     private String providerTaskId;
+    private String idempotencyKey;
+    private String requestHash;
+    private String requestedParameters;
+    private String resolvedParameters;
+    private Integer parameterSchemaVersion;
+    private String modelId;
+    private String profileId;
+    private Boolean simulated;
+    @TableField(exist = false)
+    private Long assetId;
     private GenerationStatus status;
     private Integer progress;
     private String errorCode;

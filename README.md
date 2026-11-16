@@ -1,6 +1,6 @@
 # FormaSpace Server
 
-基于现有 Spring Boot 单体的图片转 3D 应用后端。已完成基础工程、注册邮箱验证码、统一注册、用户名/邮箱密码登录、JWT 鉴权和当前用户查询。前端对接以 [docs/auth-api.md](docs/auth-api.md) 为准。
+基于现有 Spring Boot 单体的图片转 3D 应用后端。已完成基础工程、注册邮箱验证码、统一注册、用户名/邮箱密码登录、JWT 鉴权和当前用户查询。账号对接以 [docs/auth-api.md](docs/auth-api.md) 为准；图片、生成参数、任务与只读作品链路见 [docs/generation-api.md](docs/generation-api.md)。本轮没有接入真实腾讯模型。
 
 ## 环境和依赖
 
@@ -66,7 +66,7 @@ IP 限流直接读取实际连接地址，`server.forward-headers-strategy=none`
 
 ## 分层与持久化
 
-`com.xiye.formaspace` 按业务域组织，域内区分 controller / service / dto / vo / entity / mapper / enums。`auth/security` 集中身份访问和安全错误输出；`config` 负责 Security、JWT、CORS、UTC 与 MyBatis；`common` 保存响应、异常和共享校验。文件、任务与作品业务尚未实现，没有占位 Controller 或 Service 空壳。
+`com.xiye.formaspace` 按业务域组织，域内区分 controller / service / dto / vo / entity / mapper / enums。`auth/security` 集中身份访问和安全错误输出；`config` 负责 Security、JWT、CORS、UTC 与 MyBatis；`common` 保存响应、异常和共享校验。文件、生成任务与只读作品接口已经实现；真实推理未接通，默认 disabled，不提供占位成功接口。
 
 - Entity 只持久化，VO 输出 ID 字符串，时间为 Instant/UTC ISO-8601 Z。MySQL DATETIME(6) 通过 UtcInstantTypeHandler 显式映射 UTC；Java 不依赖主机时区。
 - 邮箱 strip + Locale.ROOT 小写，保留点和 + 后缀，ASCII 最大 254；用户名统一小写、3～32 位字母/数字/下划线。唯一索引和 CHECK 与应用规则对齐，不能只查询查重。昵称默认用户名，用户名第一版不可改。
@@ -80,7 +80,8 @@ IP 限流直接读取实际连接地址，`server.forward-headers-strategy=none`
 
 - V1 原样保留：六张业务表，含验证码槽与数据库限流桶。
 - V2 新增 fs_user.last_login_at、验证码 challenge_id / send_status；原验证码因没有挑战绑定摘要而置为不可验证状态。sent_at 表示预留发送的时间，失败/待发送也遵守冷却。
-- 以后继续新增 V3 等，禁止修改已应用迁移；不创建 Session、刷新 Token 表或默认用户。
+- V3 新增任务幂等键、请求指纹、参数 JSON 快照、schema/profile/model 标识和 simulated，以及作品 simulated。
+- 以后继续新增 V4 等，禁止修改已应用迁移；不创建 Session、刷新 Token 表或默认用户。
 
 验证码/限流数据库流程、SMTP 崩溃边界见 [auth-api.md](docs/auth-api.md)。过期记录不参与当前窗口计算；运维可按 expires_at 索引分批清理过期限流桶（本轮没有新增清理调度）。
 
@@ -107,3 +108,24 @@ export AUTH_TEST_DB_USERNAME=formaspace_test
 注册成功不自动登录；Token 默认 2 小时，没有刷新或后端 logout。前端删除 Token 只清理本地登录，已复制 Token 在有效期内仍可用（账号被删除/禁用除外，每请求查库立即生效）。未来实现改密时再决定旧 Token 撤销，不假装已有黑名单。
 
 找回密码只预留 DTO/用途，不提供接口；未实现 AI、对象存储、积分、支付、后台。前端文件未修改。初始化提示词保留在 skills/initialSkill 中；第一阶段历史记录见 docs/initialization-checks.md，第二阶段以当前接口文档为准。
+
+## 图片与模拟生成
+
+- 上传只接受一个 JPEG/PNG，默认 10MiB / 1600 万像素；先读尺寸再完整解码。存储默认用户主目录 `.formaspace/storage`，随机存储键、禁止路径穿越/符号链接、临时写后原子移动；数据库回滚补偿清理文件。
+- 默认 `INFERENCE_MODE=DISABLED`，不能新建任务。`SPRING_PROFILES_ACTIVE=local` 加 `INFERENCE_MODE=MOCK` 后才启动数据库驱动的单实例模拟工作器；prod 禁止 mock。
+- MOCK_DEMO_GLB 可设为你本地提供的自包含 GLB 绝对路径。有效时复制为当前用户作品；不配置时任务失败 MOCK_RESULT_NOT_CONFIGURED，不生成假地址。模拟不执行推理/去背景/贴图，参数不会改变演示模型。
+- 新任务要求 UUID Idempotency-Key，用户+key 唯一。用户行锁保护默认一个未结束任务的容量；同 key 重放使用数据库快照，不重新随机 seed。profile 的 STANDARD/HIGH 只是 mock 测试配置，未在 M5 上验证。
+- 参数配置位于 application.yml 的 formaspace.generation：预设、steps/guidance 边界、octree 离散值、组合 maximum-voxel-steps 和仅服务端 num-chunks。未来真实模式必须使用真实验证过的新 profile。
+- FILE_STORAGE_ROOT、UPLOAD_MAX_BYTES、UPLOAD_MAX_PIXELS、MODEL_MAX_BYTES、GENERATION_MAX_ACTIVE_PER_USER、MOCK_CONCURRENCY、MOCK_STAGE_DELAY、MOCK_POLL_DELAY_MS 见 .env.example。
+- 图片/GLB/下载都要求 JWT 和归属校验，用 Blob + Object URL 预览/下载，不能把 Token 拼到 URL；没有开放整个存储目录。
+
+新增的真实 MySQL 集成测试默认跳过。使用独立、可清空、名称以 `_test` 结尾的数据库运行（测试会清空业务表，使用临时图片/三角形 GLB，绝不作为产品示例资源）：
+
+```sh
+export GENERATION_TEST_DB_URL='jdbc:mysql://localhost:3306/formaspace_generation_test?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&preserveInstants=true'
+export GENERATION_TEST_DB_USERNAME=formaspace_test
+# 通过 IDE/秘密管理工具注入 GENERATION_TEST_DB_PASSWORD
+./mvnw -Dtest=GenerationMysqlTests test
+```
+
+该类关闭自动调度启动延时，用新工作器实例手动推进时间验证恢复，覆盖完整文件链路、归属、MySQL 幂等和容量并发、disabled、模拟失败与终态保护，不使用 H2。实际通过与未验证项见 docs/generation-checks.md。腾讯官方源码检查记录见 docs/hunyuan-source-review.md。

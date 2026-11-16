@@ -18,6 +18,7 @@ public class ModelAssetEntity {
     private Long thumbnailFileId;
     private String format;
     private Long sizeBytes;
+    private Boolean simulated;
     @TableField(fill = FieldFill.INSERT)
     private Instant createdAt;
     @TableField(fill = FieldFill.INSERT_UPDATE)
