@@ -2,6 +2,7 @@ package com.xiye.formaspace.common.exception;
 
 import com.xiye.formaspace.common.response.ApiResponse;
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataAccessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -19,8 +20,24 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Object> handleBusiness(BusinessException exception) {
         var code = exception.getErrorCode();
-        return ResponseEntity.status(code.getHttpStatus())
-                .body(ApiResponse.failure(code.name(), code.getMessage()));
+        var response = ResponseEntity.status(code.getHttpStatus());
+        if (exception.getRetryAfterSeconds() != null) {
+            response.header(HttpHeaders.RETRY_AFTER, exception.getRetryAfterSeconds().toString());
+        }
+        return response.body(ApiResponse.failure(code.name(), code.getMessage()));
+    }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<Object> handleAccessDenied(org.springframework.security.access.AccessDeniedException exception) {
+        var code = ErrorCode.FORBIDDEN;
+        return ResponseEntity.status(code.getHttpStatus()).body(ApiResponse.failure(code.name(), code.getMessage()));
+    }
+
+    @ExceptionHandler({DataAccessException.class, org.springframework.transaction.TransactionException.class})
+    public ResponseEntity<Object> handleDatabaseFailure(Exception exception) {
+        logUnexpected(exception);
+        var code = ErrorCode.SERVICE_UNAVAILABLE;
+        return ResponseEntity.status(code.getHttpStatus()).body(ApiResponse.failure(code.name(), code.getMessage()));
     }
 
     @ExceptionHandler(ConstraintViolationException.class)

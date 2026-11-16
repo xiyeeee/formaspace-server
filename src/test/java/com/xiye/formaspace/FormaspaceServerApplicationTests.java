@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -21,8 +22,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers = HealthController.class, properties = {
-        "formaspace.cors.allowed-origins=http://localhost:5173"})
+@WebMvcTest(controllers = HealthController.class,
+        excludeFilters = @org.springframework.context.annotation.ComponentScan.Filter(
+                type = org.springframework.context.annotation.FilterType.ASSIGNABLE_TYPE,
+                classes = {com.xiye.formaspace.config.SecurityConfig.class,
+                        com.xiye.formaspace.auth.security.ActiveUserAuthenticationConverter.class}),
+        properties = {
+        "formaspace.cors.allowed-origins=http://localhost:5173", "formaspace.email-code.hmac-key=test-only"})
+@AutoConfigureMockMvc(addFilters = false)
 @Import({WebConfig.class, FormaspaceServerApplicationTests.ProbeController.class})
 @ExtendWith(OutputCaptureExtension.class)
 class FormaspaceServerApplicationTests {

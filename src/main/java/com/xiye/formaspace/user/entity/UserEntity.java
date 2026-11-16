@@ -18,6 +18,7 @@ public class UserEntity {
     private String nickname;
     private String avatarUrl;
     private UserStatus status;
+    private Instant lastLoginAt;
     @TableField(fill = FieldFill.INSERT)
     private Instant createdAt;
     @TableField(fill = FieldFill.INSERT_UPDATE)

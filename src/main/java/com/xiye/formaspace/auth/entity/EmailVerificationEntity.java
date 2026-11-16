@@ -15,6 +15,8 @@ public class EmailVerificationEntity {
     private String email;
     private VerificationPurpose purpose;
     private String codeHash;
+    private String challengeId;
+    private com.xiye.formaspace.auth.enums.EmailSendStatus sendStatus;
     private Instant expiresAt;
     private Instant consumedAt;
     private Integer failedAttempts;

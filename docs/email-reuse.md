@@ -25,3 +25,15 @@ Java 路径前缀为 `src/main/java/com/xiye/garden/`。可核对：[验证码�
 - 六位短码不能用无密钥 SHA-256 代替 HMAC。限流桶键也不能直接保存邮箱/IP。来源 IP 仅从可信代理策略获得，不能相信任意 X-Forwarded-For。
 - `EmailCodeProperties` 的 ttl/冷却/失败次数等暂为下一轮服务配置；SQL 当前最多 5 次失败，若以后调整上限需评估新增迁移。
 - 未复制真实邮箱、密码或密钥；没有执行真实邮件发送。
+
+## 第二阶段实际适配
+
+本轮再次实际读取同一提交中的 VerificationProtector、EmailVerificationService、AuthRateLimiter、VerificationMailSender、AccountIdentifier。复用 SecureRandom 六位码、HMAC-SHA256、常量时间比较、规范化、数据库限流与 JavaMailSender。当前实现有意调整：
+
+- 有效期按第二阶段改为 5 分钟；摘要加入随机 challenge_id，JWT 与 HMAC 秘密强制分离。
+- garden 在持锁事务中等待 SMTP；本项目改为 PENDING 预留、事务外发送、按挑战条件确认 SENT/FAILED。
+- garden 的 noRollbackFor 注册流程不复制；错误计数通过提交结果后外层抛异常保留，成功消费与用户创建同一事务，唯一冲突全部回滚。
+- 登录只对失败计数；验证码重发使用数据库精确冷却，小时配额保留固定窗口。
+- 不复制 Session、Cookie、CSRF、Session 表或登录过滤器；用 Spring Security Resource Server Bearer/JWT。
+
+当前实现、失败边界与接口契约见 [auth-api.md](auth-api.md)，测试执行情况见 [auth-checks.md](auth-checks.md)。

@@ -28,6 +28,7 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedOrigins(cors.getAllowedOrigins().toArray(String[]::new))
                 .allowedMethods("GET", "POST", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("Authorization", "Content-Type", "Accept")
+                .exposedHeaders("Retry-After")
                 .allowCredentials(false)
                 .maxAge(3600);
     }
