@@ -21,6 +21,19 @@ import tools.jackson.databind.json.JsonMapper;
 import static org.assertj.core.api.Assertions.*;
 
 class GenerationConfigurationTests {
+    @Test
+    void realtimeCapabilitiesMatchDeliveredPythonInsteadOfGradioRanges() {
+        var properties=new GenerationProperties();properties.setMode(GenerationMode.PYTHON_REALTIME);
+        var service=new GenerationCapabilitiesService(properties,new FileStorageProperties(),
+                org.mockito.Mockito.mock(com.xiye.formaspace.generation.service.GenerationReadiness.class));
+        var capabilities=service.capabilities();
+        assertThat(capabilities.simulated()).isFalse();assertThat(capabilities.generationAvailable()).isFalse();
+        assertThat(capabilities.simulationNotice()).isNull();assertThat(capabilities.removeBackgroundSupported()).isFalse();
+        assertThat(capabilities.advancedParameters().get("removeBackground").defaultValue()).isEqualTo(true);
+        assertThat(capabilities.advancedParameters().get("inferenceSteps").minimum()).isEqualTo(2);
+        assertThat(capabilities.advancedParameters().get("inferenceSteps").maximum()).isEqualTo(50);
+        assertThat(capabilities.advancedParameters().get("octreeResolution").allowedValues()).containsExactly(128,256);
+    }
     private final ApplicationContextRunner context = new ApplicationContextRunner()
             .withUserConfiguration(GenerationConfig.class, GenerationParameterResolver.class,
                     GlbValidator.class, MockModelInferenceClient.class, JsonConfiguration.class);

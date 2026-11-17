@@ -178,6 +178,25 @@ class GenerationParameterTests {
         assertThat(resolved.generateTexture()).isFalse();
     }
 
+    @Test
+    void realtimeUsesDeliveredPythonLimitsAndRejectsUnsupportedPreprocessingAndPreviewSteps() {
+        profile.setMode(GenerationMode.PYTHON_REALTIME);
+        var realtimeResolver=new GenerationParameterResolver(profile);
+        var request=request();var advanced=new AdvancedGenerationOptionsDTO();request.setAdvancedOptions(advanced);
+        assertThat(realtimeResolver.resolve(realtimeResolver.requested(request)).inferenceSteps()).isEqualTo(30);
+        advanced.setRemoveBackground(false);
+        assertThatThrownBy(()->realtimeResolver.resolve(realtimeResolver.requested(request))).isInstanceOfSatisfying(BusinessException.class,
+                error->assertThat(error.getErrorCode()).isEqualTo(ErrorCode.UNSUPPORTED_CAPABILITY));
+        advanced.setRemoveBackground(true);advanced.setOctreeResolution(512);
+        assertThatThrownBy(()->realtimeResolver.resolve(realtimeResolver.requested(request))).isInstanceOf(BusinessException.class);
+        advanced.setOctreeResolution(256);advanced.setInferenceSteps(24);
+        assertThatThrownBy(()->realtimeResolver.resolve(realtimeResolver.requested(request))).isInstanceOf(BusinessException.class);
+        profile.getPythonRealtime().setPreviewEnabled(false);advanced.setInferenceSteps(2);
+        assertThat(realtimeResolver.resolve(realtimeResolver.requested(request)).inferenceSteps()).isEqualTo(2);
+        advanced.setInferenceSteps(51);
+        assertThatThrownBy(()->realtimeResolver.resolve(realtimeResolver.requested(request))).isInstanceOf(BusinessException.class);
+    }
+
     private void assertRejected(CreateGenerationDTO request, ErrorCode code) {
         assertThatThrownBy(() -> resolver.resolve(resolver.requested(request)))
                 .isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.getErrorCode()).isEqualTo(code));

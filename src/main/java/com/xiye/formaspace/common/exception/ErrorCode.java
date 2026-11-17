@@ -32,6 +32,10 @@ public enum ErrorCode {
     INFERENCE_PROTOCOL_ERROR(HttpStatus.SERVICE_UNAVAILABLE, "模型服务返回了无效结果"),
     INFERENCE_REFERENCE_LOST(HttpStatus.SERVICE_UNAVAILABLE, "模型服务已重启或任务引用失效，请核对后重新生成"),
     INFERENCE_TIMEOUT(HttpStatus.SERVICE_UNAVAILABLE, "模型生成超时，请核对模型服务后重试"),
+    INFERENCE_STATE_UNCERTAIN(HttpStatus.SERVICE_UNAVAILABLE, "等待推理结果超时，远端状态待核对；任务未被取消"),
+    SERVICE_RESTARTED(HttpStatus.SERVICE_UNAVAILABLE, "推理服务已重启，中断的生成无法恢复，已保存预览仍可查看"),
+    INFERENCE_SUBMISSION_CONFLICT(HttpStatus.CONFLICT, "推理任务标识与原图片或参数冲突，请核对服务记录"),
+    INFERENCE_AUTH_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "推理服务认证失败，请检查服务配置"),
     SUBMISSION_UNCERTAIN(HttpStatus.SERVICE_UNAVAILABLE, "模型提交结果不确定，请先核对模型服务，避免重复生成"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "服务暂时不可用，请稍后重试");
 

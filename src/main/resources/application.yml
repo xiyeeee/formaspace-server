@@ -76,6 +76,30 @@ formaspace:
     mock-stage-delay: ${MOCK_STAGE_DELAY:2s}
     mock-poll-delay-ms: ${MOCK_POLL_DELAY_MS:1000}
     mock-demo-glb: ${MOCK_DEMO_GLB:}
+    python-realtime:
+      base-url: ${INFERENCE_API_BASE_URL:http://127.0.0.1:8001}
+      ws-base-url: ${INFERENCE_WS_BASE_URL:}
+      token: ${INFERENCE_API_TOKEN:}
+      connect-timeout: ${INFERENCE_CONNECT_TIMEOUT:5s}
+      submit-timeout: ${INFERENCE_SUBMIT_TIMEOUT:20s}
+      snapshot-timeout: ${INFERENCE_SNAPSHOT_TIMEOUT:5s}
+      download-timeout: ${INFERENCE_DOWNLOAD_TIMEOUT:2m}
+      task-deadline: ${INFERENCE_TASK_DEADLINE:30m}
+      reconnect-initial-delay: ${INFERENCE_RECONNECT_INITIAL_DELAY:2s}
+      reconnect-max-delay: ${INFERENCE_RECONNECT_MAX_DELAY:30s}
+      reconciliation-interval: ${INFERENCE_RECONCILIATION_INTERVAL:10s}
+      maximum-connections: ${INFERENCE_MAXIMUM_CONNECTIONS:1}
+      maximum-message-bytes: ${INFERENCE_MAXIMUM_MESSAGE_BYTES:2097152}
+      maximum-download-bytes: ${INFERENCE_MAXIMUM_DOWNLOAD_BYTES:104857600}
+      maximum-submission-attempts: ${INFERENCE_MAXIMUM_SUBMISSION_ATTEMPTS:4}
+      steps: ${REALTIME_STEPS:30}
+      guidance-scale: ${REALTIME_GUIDANCE_SCALE:5}
+      final-resolution: ${REALTIME_FINAL_RESOLUTION:256}
+      num-chunks: ${REALTIME_NUM_CHUNKS:4000}
+      preview-enabled: ${REALTIME_PREVIEW_ENABLED:true}
+      preview-step: ${REALTIME_PREVIEW_STEP:24}
+      preview-resolution: ${REALTIME_PREVIEW_RESOLUTION:128}
+      point-count: ${REALTIME_POINT_COUNT:5000}
     hunyuan-local:
       base-url: ${HUNYUAN_BASE_URL:http://127.0.0.1:7860}
       api-name: ${HUNYUAN_API_NAME:shape_generation}

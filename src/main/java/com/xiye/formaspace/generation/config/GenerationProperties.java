@@ -50,7 +50,17 @@ public class GenerationProperties {
     @Valid @NotNull
     private HunyuanLocalProperties hunyuanLocal = new HunyuanLocalProperties();
 
+    @Valid @NotNull
+    private PythonRealtimeProperties pythonRealtime = new PythonRealtimeProperties();
+
     public com.xiye.formaspace.generation.parameter.GenerationProfile activeProfile() {
+        if (mode == GenerationMode.PYTHON_REALTIME) {
+            return new com.xiye.formaspace.generation.parameter.GenerationProfile("python-realtime-v1",
+                    pythonRealtime.getModelId(), false, 10_000_000L, 2, 50, 0, 10,
+                    List.of(128,256), 838_860_800L,
+                    pythonRealtime.getNumChunks(), Map.of(GenerationQuality.STANDARD,
+                    new Preset(pythonRealtime.getSteps(), pythonRealtime.getGuidanceScale(), pythonRealtime.getFinalResolution())));
+        }
         if (mode == GenerationMode.HUNYUAN_LOCAL) {
             // UI limits verified against the local Gradio metadata; runtime performance depends on the deployment.
             var preset = hunyuanLocal.getStandardPreset();

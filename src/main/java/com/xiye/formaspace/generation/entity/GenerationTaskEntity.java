@@ -20,6 +20,18 @@ public class GenerationTaskEntity {
     private String remoteReference;
     private String remoteResultReference;
     private String inferenceStage;
+    private String inferenceTaskId;
+    private String inferenceService;
+    private String pythonParameters;
+    private Long lastPythonSequence;
+    private Integer completedSteps;
+    private Integer totalSteps;
+    private Integer pythonPreviewVersion;
+    private Integer storedPreviewVersion;
+    private String connectionState;
+    private String submissionState;
+    private Integer submissionAttempts;
+    private String previewErrorCode;
     private Integer queryFailures;
     private Instant nextPollAt;
     private Instant deadlineAt;

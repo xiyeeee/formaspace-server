@@ -28,7 +28,7 @@ public class LocalFileStorage implements FileStorage {
 
     @Override
     public StoredFile save(InputStream source, String extension, long maximumBytes) throws IOException {
-        if (!Set.of("jpg", "png", "glb").contains(extension)) {
+        if (!Set.of("jpg", "png", "glb", "json").contains(extension)) {
             throw new IllegalArgumentException("Unsupported storage extension");
         }
         verifyRoot();
@@ -83,7 +83,7 @@ public class LocalFileStorage implements FileStorage {
 
     private Path resolve(String key) throws IOException {
         verifyRoot();
-        if (key == null || !key.matches("[a-f0-9-]{36}\\.(jpg|png|glb)")) {
+        if (key == null || !key.matches("[a-f0-9-]{36}\\.(jpg|png|glb|json)")) {
             throw new NoSuchFileException("Invalid storage identifier");
         }
         Path path = root.resolve(key).normalize();

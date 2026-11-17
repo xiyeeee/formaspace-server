@@ -25,17 +25,17 @@ public class GenerationCapabilitiesService {
         if (standard == null) { standard = selected.presets().values().iterator().next(); }
         boolean rangeAdvisory = profile.getMode() == GenerationMode.HUNYUAN_LOCAL;
         Map<String, ParameterCapability> advanced = new LinkedHashMap<>();
-        advanced.put("removeBackground", new ParameterCapability(true, true, null, null, null));
+        boolean realtime=profile.getMode()==GenerationMode.PYTHON_REALTIME;
+        advanced.put("removeBackground", new ParameterCapability(!realtime, true, null, null, null));
         advanced.put("seed", new ParameterCapability(true, null, 0, selected.maximumSeed(), null));
         advanced.put("inferenceSteps", new ParameterCapability(true, standard.inferenceSteps(), selected.minimumSteps(), selected.maximumSteps(), null, rangeAdvisory));
         advanced.put("guidanceScale", new ParameterCapability(true, standard.guidanceScale(), selected.minimumGuidance(), selected.maximumGuidance(), null, rangeAdvisory));
         advanced.put("octreeResolution", new ParameterCapability(true, standard.octreeResolution(), null, null, List.copyOf(selected.octreeResolutions()), rangeAdvisory));
-        return new GenerationCapabilitiesVO(profile.getMode(), profile.getMode() == GenerationMode.MOCK
-                || (profile.getMode() == GenerationMode.HUNYUAN_LOCAL && readiness.available()),
+        return new GenerationCapabilitiesVO(profile.getMode(), profile.getMode()==GenerationMode.MOCK || readiness.available(),
                 profile.getMode() == GenerationMode.MOCK, selected.modelId(), selected.id(),
-                profile.getMode() == GenerationMode.HUNYUAN_LOCAL ? null
+                !selected.simulated() ? null
                         : "仅模拟参数与任务链路，不执行真实推理、去背景或贴图；参数不会改变演示模型。",
-                List.of("SINGLE_IMAGE"), presets, false, true, advanced, selected.maximumVoxelSteps(),
+                List.of("SINGLE_IMAGE"), presets, false, !realtime, advanced, selected.maximumVoxelSteps(),
                 new UploadConstraints(List.of("JPEG", "PNG"), upload.getMaxUploadBytes(), upload.getMaxImagePixels()));
     }
 }

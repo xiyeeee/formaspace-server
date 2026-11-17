@@ -26,6 +26,12 @@ if [[ ! -f .env.auth ]]; then
 fi
 source .env.auth
 
+if [[ "${INFERENCE_MODE:-}" == "PYTHON_REALTIME" && -z "${INFERENCE_API_TOKEN:-}" && -f "${HOME}/.config/formaspace/inference.env" ]]; then
+  set -a
+  source "${HOME}/.config/formaspace/inference.env"
+  set +a
+fi
+
 export JWT_SECRET="${JWT_SECRET:-$FORMASPACE_LOCAL_JWT_SECRET}"
 export AUTH_CODE_HMAC_KEY="${AUTH_CODE_HMAC_KEY:-$FORMASPACE_LOCAL_HMAC_KEY}"
 export SPRING_PROFILES_ACTIVE=local

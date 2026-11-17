@@ -88,7 +88,10 @@ public class GenerationResultPublisher {
                 asset.setSizeBytes(stored.sizeBytes());
                 asset.setSimulated(simulated);
                 assets.insert(asset);
-                if ((simulated ? tasks.succeed(taskId, clock.instant()) : tasks.succeedReal(taskId, clock.instant())) != 1) { throw new IllegalStateException("Task completion conflict"); }
+                int completed = simulated ? tasks.succeed(taskId, clock.instant())
+                        : "PYTHON_REALTIME".equals(task.getExecutionMode()) ? tasks.succeedRealtime(taskId, clock.instant())
+                        : tasks.succeedReal(taskId, clock.instant());
+                if (completed != 1) { throw new IllegalStateException("Task completion conflict"); }
                 commitAttempted.set(true);
                 return true;
             });

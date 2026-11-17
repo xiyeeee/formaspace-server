@@ -1,5 +1,7 @@
 # FormaSpace Server
 
+Python 常驻 HTTP/WebSocket 模式（独立 `PYTHON_REALTIME`）、V5 迁移、点云预览与恢复协调见 [实时推理对接说明](docs/python-realtime-integration.md)。已通过真实 Python/MPS→5000 点预览→Java 保存发布 GLB 验证，使用独立测试数据库；前端实时模式接入另一步完成。
+
 基于现有 Spring Boot 单体的图片转 3D 应用后端。已完成基础工程、注册邮箱验证码、统一注册、用户名/邮箱密码登录、JWT 鉴权和当前用户查询。账号对接以 [docs/auth-api.md](docs/auth-api.md) 为准；图片、生成参数、任务与只读作品链路见 [docs/generation-api.md](docs/generation-api.md)。已增加本地 Gradio 的 HUNYUAN_LOCAL 对接；真实生成联调是否完成以 docs/hunyuan-local-integration.md 为准。
 
 ## 环境和依赖

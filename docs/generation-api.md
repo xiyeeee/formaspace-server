@@ -1,5 +1,7 @@
 # 图片、参数与生成任务 API
 
+新增独立 `PYTHON_REALTIME` 常驻 HTTP/WS 模式，任务详情/历史增量返回 stage、completedSteps、totalSteps、latestPreview、connectionState，并新增 JWT 保护的任务点云预览读取接口。V5、实际 Python 参数范围、恢复规则和真实联调结果见 [python-realtime-integration.md](python-realtime-integration.md)。旧 HUNYUAN_LOCAL 继续使用 Gradio，不静默切换协议。
+
 本轮实现受保护的上传→参数→创建任务→查询→只读结果链路。已增加 **HUNYUAN_LOCAL** 对接本地 Gradio，保留 DISABLED / MOCK；没有 M5 16GB 生成质量/性能实测结论。已用 Java 客户端完成真实图片上传、SSE、GLB 下载与校验；MySQL 已通过 Compose 启动，Java 完整启动及 Flyway V1～V4 已验证；真实生成业务任务与前端端到端验收尚未完成。真实模式说明见 [hunyuan-local-integration.md](hunyuan-local-integration.md)，下文原 mock 示例保留。
 
 所有接口使用现有 JWT：`Authorization: Bearer <accessToken>`，不接收客户端 userId 决定归属。JSON 统一 ApiResponse，ID 字符串，时间 UTC ISO-8601 Z。文件流接口直接返回二进制，出错且尚未发送响应时返回统一 JSON。

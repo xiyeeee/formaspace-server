@@ -11,11 +11,16 @@ import org.springframework.stereotype.Component;
 public class GenerationReadiness {
     private final GenerationProperties properties;
     private final ObjectProvider<HunyuanLocalInferenceClient> clients;
+    private final ObjectProvider<com.xiye.formaspace.generation.realtime.PythonRealtimeClient> realtimeClients;
 
     public boolean available() {
         return switch (properties.getMode()) {
             case DISABLED -> false;
             case MOCK -> true;
+            case PYTHON_REALTIME -> {
+                var client=realtimeClients.getIfAvailable();
+                yield client!=null && client.ready();
+            }
             case HUNYUAN_LOCAL -> {
                 var client=clients.getIfAvailable();
                 yield client != null && client.readiness().ready();

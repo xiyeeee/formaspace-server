@@ -36,6 +36,13 @@ public class GenerationParameterResolver {
         double guidance = advanced.guidanceScale() == null ? preset.guidanceScale() : advanced.guidanceScale();
         int octree = advanced.octreeResolution() == null ? preset.octreeResolution() : advanced.octreeResolution();
         validateCombination(steps, guidance, octree);
+        if (profile.getMode() == GenerationMode.PYTHON_REALTIME) {
+            var realtime = profile.getPythonRealtime();
+            if (!advanced.removeBackground()) throw new BusinessException(ErrorCode.UNSUPPORTED_CAPABILITY);
+            if (realtime.isPreviewEnabled() && realtime.getPreviewStep() >= steps) {
+                throw new BusinessException(ErrorCode.INVALID_GENERATION_PARAMETERS);
+            }
+        }
         Long specifiedSeed = advanced.seed();
         if (specifiedSeed != null && (specifiedSeed < 0 || specifiedSeed > profile.activeProfile().maximumSeed())) {
             throw new BusinessException(ErrorCode.INVALID_GENERATION_PARAMETERS);

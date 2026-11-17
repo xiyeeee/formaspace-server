@@ -27,11 +27,13 @@ public class GenerationTaskService {
     private final GenerationSnapshots snapshots;
     private final GenerationProperties properties;
     private final GenerationReadiness readiness;
+    private final com.xiye.formaspace.generation.realtime.GenerationPreviewService previews;
     private final TransactionTemplate transactions;
 
     public GenerationTaskService(GenerationTaskMapper tasks, UserMapper users, FileService files,
             GenerationParameterResolver resolver, GenerationSnapshots snapshots, GenerationProperties properties,
-            PlatformTransactionManager manager, GenerationReadiness readiness) {
+            PlatformTransactionManager manager, GenerationReadiness readiness,
+            com.xiye.formaspace.generation.realtime.GenerationPreviewService previews) {
         this.tasks = tasks;
         this.users = users;
         this.files = files;
@@ -39,6 +41,7 @@ public class GenerationTaskService {
         this.snapshots = snapshots;
         this.properties = properties;
         this.readiness = readiness;
+        this.previews = previews;
         transactions = new TransactionTemplate(manager);
     }
 
@@ -48,7 +51,7 @@ public class GenerationTaskService {
         String requestedJson = snapshots.encode(requested);
         String fingerprint = snapshots.fingerprint(requestedJson);
         // Metadata/network calls must happen before taking a database row lock; replay remains allowed below.
-        boolean available = properties.getMode() != GenerationMode.HUNYUAN_LOCAL || readiness.available();
+        boolean available = (properties.getMode() != GenerationMode.HUNYUAN_LOCAL && properties.getMode()!=GenerationMode.PYTHON_REALTIME) || readiness.available();
         return transactions.execute(status -> {
             // One user row serializes both idempotency lookup and active-capacity decisions across keys.
             if (users.lockActiveIdentity(userId) == null) { throw new BusinessException(ErrorCode.UNAUTHORIZED); }
@@ -74,6 +77,17 @@ public class GenerationTaskService {
             task.setStatus(GenerationStatus.PENDING);
             task.setSimulated(properties.getMode() == GenerationMode.MOCK);
             task.setExecutionMode(properties.getMode().name());
+            if (properties.getMode()==GenerationMode.PYTHON_REALTIME) {
+                var realtime=properties.getPythonRealtime();
+                task.setProvider("PYTHON_REALTIME");
+                task.setInferenceTaskId(UUID.randomUUID().toString());
+                task.setInferenceService(com.xiye.formaspace.generation.realtime.PythonRealtimeClient.serviceKey(realtime));
+                task.setPythonParameters(snapshots.encode(com.xiye.formaspace.generation.realtime.PythonTaskParameters.from(resolved,realtime)));
+                task.setLastPythonSequence(-1L);task.setCompletedSteps(0);task.setTotalSteps(resolved.inferenceSteps());
+                task.setPythonPreviewVersion(0);task.setStoredPreviewVersion(0);task.setSubmissionState("NEW");
+                task.setSubmissionAttempts(0);task.setConnectionState("DISCONNECTED");task.setInferenceStage("queued");
+                task.setDeadlineAt(java.time.Instant.now().plus(realtime.getTaskDeadline()));
+            }
             task.setModelId(properties.activeProfile().modelId());
             task.setQueryFailures(0);
             task.setIdempotencyKey(key);
@@ -103,7 +117,8 @@ public class GenerationTaskService {
                 snapshots.decode(task.getRequestedParameters(), RequestedGenerationParameters.class),
                 snapshots.decode(task.getResolvedParameters(), ResolvedGenerationParameters.class),
                 task.getAssetId() == null ? null : task.getAssetId().toString(), task.getErrorCode(), task.getErrorMessage(),
-                task.getCreatedAt(), task.getStartedAt(), task.getFinishedAt());
+                task.getCreatedAt(), task.getStartedAt(), task.getFinishedAt(), task.getInferenceStage(),
+                task.getCompletedSteps(),task.getTotalSteps(),previews.latest(task.getId(),task.getStoredPreviewVersion()),task.getConnectionState());
     }
 
     private String canonicalKey(String value) {
