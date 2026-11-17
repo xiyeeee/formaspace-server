@@ -13,6 +13,8 @@
 
 ## 建库与启动
 
+本机使用 OrbStack 时，可按 [Compose 本地数据库说明](docs/local-mysql.md) 启动独立 MySQL；默认端口 3307，Navicat 和 Java 使用同一组应用账号。
+
 1. 启动 MySQL，使用有建库权限的账号执行：
 
    ```sh
@@ -58,9 +60,11 @@
 | `AUTH_REGISTER_EMAIL_ATTEMPTS`, `AUTH_REGISTER_IP_ATTEMPTS` | 10 / 30 次注册尝试 |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | 邮件主机、端口、认证用户名、授权码/密码、发件人 |
 | `SMTP_AUTH`, `SMTP_STARTTLS`, `SMTP_SSL` | 默认 true / true / false |
-| `CORS_ALLOWED_ORIGINS` | 逗号分隔精确来源；local 默认 http://localhost:5173，prod 默认拒绝跨域 |
+| `CORS_ALLOWED_ORIGINS` | 逗号分隔额外精确来源；local 自动允许 localhost/127.0.0.1 的任意端口，prod 仅允许显式配置的来源 |
 
-默认邮件使用 STARTTLS/587。若供应商要求 SSL/465，同时设 `SMTP_PORT=465`、`SMTP_STARTTLS=false`、`SMTP_SSL=true`。邮件开启时要求主机、用户名、密码、合法发件人，并且 TLS 两种模式只启用一种。连接/读取/写入超时均为 5 秒；关闭启动 SMTP 连通性测试，本轮开发验证不发送真实邮件。
+默认邮件使用 STARTTLS/587。若供应商要求 SSL/465，同时设 `SMTP_PORT=465`、`SMTP_STARTTLS=false`、`SMTP_SSL=true`。邮件开启时要求主机、用户名、密码、合法发件人，并且 TLS 两种模式只启用一种。连接/读取/写入超时均为 5 秒；关闭启动 SMTP 连通性测试，普通启动不自动发送邮件。
+
+本机真实邮件的自动加载配置见 [本地邮件说明](docs/local-mail.md)，支持 IDEA 与脚本启动，凭证存放在仓库外。
 
 IP 限流直接读取实际连接地址，`server.forward-headers-strategy=none`，不信任任意 X-Forwarded-For。当前没有可信代理转发功能；反向代理部署时在实现可信代理白名单前，限流会按代理连接地址聚合，不能直接开启全信任转发头。
 
@@ -142,6 +146,6 @@ export HUNYUAN_BASE_URL=http://127.0.0.1:7860
 ./mvnw spring-boot:run
 ```
 
-需先准备已有数据库/JWT/HMAC 配置并等待模型完成下载、加载和实际监听。真实 STANDARD 默认是 5 步 / guidance 5 / octree 128 / numChunks 1000 的低资源候选，seed 最大 10000000，不继承 mock HIGH。**本轮检查时 7860 尚未监听、MySQL 不可用，没有完成真实图片生成验证。**
+需先准备已有数据库/JWT/HMAC 配置并等待模型完成下载、加载和实际监听。真实 STANDARD 默认是 5 步 / guidance 5 / octree 128 / numChunks 1000 的低资源候选，seed 最大 10000000，不继承 mock HIGH。**已通过 Java 客户端实际上传图片、等待 SSE 并下载校验真实 GLB（1,846,496 字节）；MySQL 已通过 Compose 启动，Java 完整启动及 Flyway V1～V4 已验证；真实生成任务/作品入库与前端端到端验收尚未完成。**
 
 完整入口核对、参数顺序、配置、恢复边界和诊断见 [docs/hunyuan-local-integration.md](docs/hunyuan-local-integration.md)。模式切换前应先处理旧模式未结束任务，工作器不会跨模式接管。服务未就绪时上传/历史仍可用，capabilities 标记不可生成，新任务 503。

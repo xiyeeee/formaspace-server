@@ -1,6 +1,6 @@
 # Hunyuan 本地对接交付记录
 
-日期：2026-11-17。已完成 Java 代码对接，**未完成真实图片生成的端到端验证**。
+日期：2026-11-17。已完成 Java 代码对接及**Java 客户端到真实模型的图片生成、SSE 与 GLB 下载验证**。MySQL 尚不可用，任务/作品入库及前端端到端验证仍未完成。
 
 ## 本轮完成
 
@@ -14,7 +14,7 @@
 - 轻量 readiness 检查版本、API/参数顺序、File 返回、RGBA 输入、激活模型标识与 app_id，不靠网页 200 或生成一次探活。Python 不可用时 Java 的上传/历史仍可用，新任务 503，原幂等重放可返回。
 - 新增 V4__hunyuan_remote_execution.sql；V1/V2/V3 原样保留。存储远程引用、阶段、查询失败次数、下次重试、deadline、模式索引；VO 不暴露这些内部字段。
 
-## 本地环境实际检查
+## 首轮本地环境检查（历史记录）
 
 相邻 formaspace-inference 仓库 HEAD 为 f8db63096c8282cb27354314d896feba5ba6ff8a，源码工作区干净，未修改 Python、重新安装环境或下载另一套模型。本机 .venv 的 Gradio=6.32.0、gradio_client=2.7.2。
 
@@ -24,7 +24,7 @@
 
 协议、参数索引和参考文件见 [hunyuan-local-integration.md](hunyuan-local-integration.md)。
 
-## 已执行检查
+## 首轮检查（历史记录）
 
 按用户要求仅新增 7 项小型 loopback HTTP/SSE 协议检查，并运行现有回归：
 
@@ -41,17 +41,17 @@
 
 Maven 使用项目外临时 settings 指向 Maven Central，绕过本机全局内网仓库配置；没有修改全局配置或项目依赖版本。
 
-## 未执行、不能宣称完成
+## 当前验证边界
 
 本机 MySQL 3306 不可连接，未配置真实数据库测试，原 10 项鉴权 + 6 项生成 MySQL 集成测试跳过。没有将 mock 事务测试当作真实 MySQL 验证。V4 真实迁移、DB 行锁/条件更新、真实文件/作品发布与重启恢复尚需实际数据库验证。
 
-7860 不可连接、权重未确认就绪：未在页面成功生成同图，未通过 FormaSpace 创建真实任务得到 GLB/assetId，未实际下载或 Three.js 预览，未核对真实 Python stats/MPS 性能。7 项 stub 成功不代表这些步骤完成。
+本次 7860 已监听并成功执行真实图片生成。Python stats 已确认 seed/steps/guidance/octree/rembg/numChunks，Java 下载的真实 GLB 通过结构与 mesh 存在性校验。但尚未通过 FormaSpace 的上传/任务 REST 接口得到 assetId，未执行 Three.js 预览，也未进行多图质量与长期稳定性评测。
 
 Gradio 不是持久化队列。Java 能恢复已保存、仍可查询的事件和已保存的文件引用；若事件已消费但结果引用尚未持久化就崩溃，可能只能核对 Python 缓存/日志后手工处理，不保证 exactly-once 或所有崩溃窗口无损恢复。
 
 ## 用户下一步
 
-1. 等现有模型进程完成下载/加载，确认 7860 监听以及页面可生成 GLB；不要重复启动多个 pipeline。
+1. 当前模型已重启并启用共享串行队列，7860 可用；保持单个 pipeline 进程运行。
 2. 启动 MySQL，注入已有 DB/JWT/HMAC 配置，让 Flyway 应用 V4。
 3. 设置 SPRING_PROFILES_ACTIVE=local、INFERENCE_MODE=HUNYUAN_LOCAL、HUNYUAN_BASE_URL=http://127.0.0.1:7860；启动 Java。
 4. capabilities 可用后，上传→带 Idempotency-Key 创建任务→轮询终态→Bearer 下载/Blob 预览，确认 simulated=false 和实际参数。
@@ -97,3 +97,25 @@ Gradio 不是持久化队列。Java 能恢复已保存、仍可查询的事件�
 - `src/main/java/com/xiye/formaspace/generation/worker/HunyuanGenerationWorker.java`
 - `src/main/resources/db/migration/V4__hunyuan_remote_execution.sql`
 - `src/test/java/com/xiye/formaspace/generation/HunyuanProtocolTests.java`
+
+## 本次补充检查与真实结果
+
+- 已读取正在运行服务的 `/config` 与 `/gradio_api/info`，确认 Gradio 6.32.0、mini 非 turbo、RGBA、13 个参数顺序、File 输出；Java readiness 实测通过。
+- 旧进程固定参数复现截图的 index 0 越界，原进程未暴露完整 traceback；原参数重启后两次真实生成成功，不能据此声称根因已完全确定。
+- Python 实际调用：`004.png`、seed=1234、steps=5、guidance=5、octree=128、removeBackground=true、numChunks=1000、randomize_seed=false。结果 51,284 顶点/102,488 面，shape generation 约 11 秒。
+- Java `HunyuanLocalIntegrationTests` 实际调用相同输入和参数，经 multipart 上传、POST call、完整 SSE、FileData/update 解析和同源下载，获得 **1,846,496 字节**真实 GLB；GlbValidator 与 mesh 检查通过，整项测试约 14 秒。该测试显式由 `HUNYUAN_INTEGRATION_IMAGE` 开启；默认跳过，不启动模型、不下载权重，不要求数据库。
+- 修复 Python 两个生成事件未共享并发队列的问题：shape_generation/generation_all 都使用 `hunyuan_pipeline` 且并发固定 1。离线构建实际 Blocks 的 unittest 通过；未用参数替换、假模型或换权重处理错误。
+- 新增 6 项 `HunyuanGenerationWorkerTests`：重启后事件恢复、已保存结果恢复、不确定提交不重发、有界退避、截止时间、迟到完成不发布。
+- 默认 `./mvnw -s /tmp/formaspace-maven-settings.xml -ntp package`：**142 项，125 通过、17 跳过、0 失败、0 错误**。跳过为 16 项需要 MySQL 的集成测试与 1 项显式开启的真实模型测试。打包成功。
+- Python `.venv/bin/python -m unittest discover -s tests -v`：1 项通过。Gradio 6 的旧 theme/css 参数警告沿用上游，不影响推理协议。
+- 新增文件：`src/test/java/com/xiye/formaspace/generation/HunyuanLocalIntegrationTests.java`、`src/test/java/com/xiye/formaspace/generation/HunyuanGenerationWorkerTests.java`；推理仓库修改 `gradio_app.py`，新增 `tests/test_gradio_concurrency.py`。
+- 依赖无变化；数据库仍只新增 V4，未修改 V1～V3。本次没有提交或推送代码。
+
+真实模型验证与业务端到端验证分开记录：前者已通过，后者仍需可连接的 MySQL、账号/JWT 配置及实际任务发布结果。
+
+串行配置重启后的复验：13:17 Java 实际模型测试再次通过（11.8 秒，1,846,496 字节），确认修改已加载且协议不变。日志 `/tmp/formaspace-real-java-serial.log`。前端已补齐 HUNYUAN_LOCAL 响应枚举、生成开关、模型状态与失败提示；lint/build 和三种模式的能力/参数契约检查通过，无依赖变化。文件清单与浏览器验证边界见前端 `docs/hunyuan-local-integration.md`。
+
+
+## 后续本地基础服务验证
+
+2026-11-17，MySQL 已通过独立 Compose 容器启动（本机 3307），完整 Java 启动与 Flyway V1～V4 成功，健康接口返回 UP。本地真实 SMTP 验证亦已通过，详见 local-mysql.md 与 local-mail.md。上文 MySQL 不可用属于此前检查记录；真实生成业务任务→作品入库→前端预览/下载整条链路仍待验收。

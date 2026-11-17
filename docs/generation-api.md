@@ -1,6 +1,6 @@
 # 图片、参数与生成任务 API
 
-本轮实现受保护的上传→参数→创建任务→查询→只读结果链路。已增加 **HUNYUAN_LOCAL** 对接本地 Gradio，保留 DISABLED / MOCK；没有 M5 16GB 生成质量/性能实测结论。本地模型当时仍在下载且 7860 未监听，不能声称真实生成验证完成。真实模式说明见 [hunyuan-local-integration.md](hunyuan-local-integration.md)，下文原 mock 示例保留。
+本轮实现受保护的上传→参数→创建任务→查询→只读结果链路。已增加 **HUNYUAN_LOCAL** 对接本地 Gradio，保留 DISABLED / MOCK；没有 M5 16GB 生成质量/性能实测结论。已用 Java 客户端完成真实图片上传、SSE、GLB 下载与校验；MySQL 已通过 Compose 启动，Java 完整启动及 Flyway V1～V4 已验证；真实生成业务任务与前端端到端验收尚未完成。真实模式说明见 [hunyuan-local-integration.md](hunyuan-local-integration.md)，下文原 mock 示例保留。
 
 所有接口使用现有 JWT：`Authorization: Bearer <accessToken>`，不接收客户端 userId 决定归属。JSON 统一 ApiResponse，ID 字符串，时间 UTC ISO-8601 Z。文件流接口直接返回二进制，出错且尚未发送响应时返回统一 JSON。
 

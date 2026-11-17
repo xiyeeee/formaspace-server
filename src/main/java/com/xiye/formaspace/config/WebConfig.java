@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -13,6 +14,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @EnableConfigurationProperties({CorsProperties.class, EmailCodeProperties.class})
 public class WebConfig implements WebMvcConfigurer {
     private final CorsProperties cors;
+    private final Environment environment;
 
     @Bean
     public Clock clock() {
@@ -24,12 +26,17 @@ public class WebConfig implements WebMvcConfigurer {
         if (cors.getAllowedOrigins().stream().anyMatch(origin -> origin.contains("*"))) {
             throw new IllegalStateException("CORS 必须配置明确的来源，不允许通配符");
         }
-        registry.addMapping("/api/**")
+        var registration = registry.addMapping("/api/**")
                 .allowedOrigins(cors.getAllowedOrigins().toArray(String[]::new))
                 .allowedMethods("GET", "POST", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("Authorization", "Content-Type", "Accept", "Idempotency-Key")
                 .exposedHeaders("Retry-After", "Content-Disposition")
                 .allowCredentials(false)
                 .maxAge(3600);
+        if (environment.matchesProfiles("local") && !environment.matchesProfiles("prod")) {
+            registration.allowedOriginPatterns(
+                    "http://localhost:[*]", "https://localhost:[*]",
+                    "http://127.0.0.1:[*]", "https://127.0.0.1:[*]");
+        }
     }
 }

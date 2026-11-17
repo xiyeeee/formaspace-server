@@ -4,15 +4,15 @@
 
 2026-11-17 已完成 Java 的 HUNYUAN_LOCAL 模式、Gradio HTTP/SSE 客户端、持久化远程引用与结果、真实任务调度和 GLB 发布。真实任务与作品 simulated=false；DISABLED/MOCK 保留。没有引入腾讯云 API、Python 中转服务、WebFlux 或另一套权重。
 
-**尚未完成真实生成验证。** 检查时本机有 mini/MPS 进程，但 7860 未监听；进程持有 Hugging Face 的权重下载锁和 .incomplete 文件。本机 MySQL 3306 同样不可连接，真实 Flyway V4 与账号→上传→生成→assetId→下载链路未执行。不能将本地 stub 协议测试或 mock GLB 当作真实生成。
+**已完成 Java 客户端到真实模型的生成验证，尚未完成数据库与前端端到端验收。** 2026-11-17 13:12，Java 实际上传示例图片，调用已运行的 Gradio，读取完整 SSE、下载 1,846,496 字节的真实 GLB，并通过 GlbValidator 与 mesh 存在性检查。本机 MySQL 3306 仍不可连接，Flyway V4、任务/作品入库、assetId、鉴权下载和前端预览尚待实际数据库验收。
 
 ## 实际检查记录
 
-- 相邻仓库 `../formaspace-inference`，HEAD `f8db63096c8282cb27354314d896feba5ba6ff8a`；检查前后源码工作区干净，没有修改 Python、切换模型、安装环境或触发另一套权重下载。
+- 相邻仓库 `../formaspace-inference`，基于 HEAD `f8db63096c8282cb27354314d896feba5ba6ff8a`；本次仅调整两个生成事件共享 `hunyuan_pipeline` 并发组（并发 1），增加离线 UI 绑定检查。没有切换模型、安装环境或下载另一套权重。
 - 进程参数：`python gradio_app.py --model_path tencent/Hunyuan3D-2mini --subfolder hunyuan3d-dit-v2-mini --device mps --disable_tex --host 127.0.0.1 --port 7860`。
 - 本地 .venv：Gradio **6.32.0**，gradio_client **2.7.2**。
 - 实际读取 gradio_app.py 的 _gen_shape / shape_generation / 事件绑定 / export；api_server.py；形状、背景预处理代码，以及本地安装的 gradio/routes.py、blocks.py、gradio_client/client.py。
-- 因运行进程尚未监听，无法读取该进程的实时 Use via API。另在不执行 `__main__`、不加载权重、不启动端口的检查脚本中构建同一源码的 Blocks，调用 `get_api_info()` 与 config，核对下面的函数名、参数顺序和 File 输出。这个离线元数据检查不代表服务已就绪。
+- 首轮检查时尚未监听，仅核对离线元数据；本次已读取实际运行的 `/config`、`/gradio_api/info`，确认版本、模型标识、RGBA、13 个参数和 File 输出，并用 Python 客户端及 Java 客户端各完成一次真实调用。
 - shape_generation 已直接返回 white_mesh.glb 的 FileData（可能包在 gr.update/value 内），无需调用 on_export_click。后续 HTML 是展示页，Java 不将其作为模型。
 
 ## 已核对的协议
@@ -52,7 +52,7 @@ texture 第一版固定 false，format 固定 GLB。quality 只由 Java 选择 p
 
 默认真实 profile 为 `hunyuan-mini-mps-candidate-v1`，只开放 STANDARD：5 步、guidance=5、octree=128、numChunks=1000。高级参数可显式传这些值，但超出该 profile 的 steps/guidance/octree 会拒绝，不钳制。removeBackground 支持 true/false，seed 可指定或由 Java 首次创建时生成。
 
-这些只是低资源**候选配置**，本轮未在 M5 16GB 完成模型实测，不是质量或最佳性能保证。通过环境变量修改候选 preset 时，应在本地确认效果并更新 profile-id。HIGH 当前不开放，mock 的 HIGH 不会自动继承到真实模式。
+该低资源配置已用 `assets/example_images/004.png` 实测：seed=1234，5 步、guidance=5、octree=128、numChunks=1000、removeBackground=true、randomize_seed=false，生成 51,284 顶点/102,488 面。Python 调用推理约 11 秒，Java 完整协议测试约 14 秒；这是单图功能验证，不是质量或最佳性能保证。通过环境变量修改候选 preset 时，应在本地确认效果并更新 profile-id。HIGH 当前不开放，mock 的 HIGH 不会自动继承到真实模式。
 
 readiness 是轻量元数据检查，不发推理请求：要求本机核对的 Gradio 版本、API 前缀、13 个参数顺序、File 输出、RGBA 输入，以及页面模型标识与配置 model-id/subfolder 一致。已检查的本地源码在加载 BackgroundRemover 和 i23d_worker 之后才启动 Gradio；因此匹配这套元数据比“HTTP 页面可访问”更严格，但不替代一次真实图片生成测试。若未来 Python 改为懒加载，应提供明确模型 readiness，再更新 Java 校验。
 
@@ -98,7 +98,7 @@ export HUNYUAN_BASE_URL=http://127.0.0.1:7860
 
 ## 任务持久化与恢复
 
-- 创建接口仍立即返回 PENDING，simulated=false，modelId/profileId 来自真实配置。默认全局并发固定 1；单 Java 应用实例，Gradio 同一 shape 函数也按队列默认并发 1 运行。不要同时用其他 API/进程访问同一 pipeline，隐藏的贴图接口不属于本轮对接。
+- 创建接口仍立即返回 PENDING，simulated=false，modelId/profileId 来自真实配置。默认全局并发固定 1；单 Java 应用实例。Python 的 shape_generation 和 generation_all 事件现在共享并发组且 concurrency_limit=1，避免两个入口同时修改 pipeline/scheduler。禁止另起进程共享同一 pipeline；贴图仍不开放。
 - 认领后短 SQL 写 SUBMITTING、started_at、deadline_at。图片上传和远程 POST 都在数据库事务/行锁之外。
 - 收到事件 ID 后，写 provider_task_id、remote_reference、GENERATING，再进入 PROCESSING。引用内绑定 base-url/api/app_id/deadline，防止重启或配置改动后误查询别的服务。
 - 串行工作器在后台消费 SSE，前端仍按现有接口轮询，progress=null，不提供 WebSocket/点云或假百分比。
@@ -113,9 +113,16 @@ Gradio 自身临时上传/输出文件由模型服务缓存策略管理，Java �
 
 ## 验证与诊断
 
-本轮只新增小型 loopback HTTP/SSE stub 协议检查，默认测试不下载权重、不启动真实推理。保留原有回归测试。检查和文件清单见 [hunyuan-local-checks.md](hunyuan-local-checks.md)。
+默认测试使用本地 stub，另有 6 项真实工作器恢复/重试/终态检查；不下载权重、不启动推理。真实客户端测试需显式设置图片路径，且模型必须已经启动：
 
-真实手工验收（需用户显式启动模型/Java 后进行）：
+```sh
+HUNYUAN_INTEGRATION_IMAGE="$PWD/../formaspace-inference/assets/example_images/004.png" \
+  ./mvnw -Dtest=HunyuanLocalIntegrationTests test
+```
+
+该测试不要求数据库，覆盖实际图片上传、固定参数提交、SSE、同源文件下载、GLB 验证和 mesh 存在性；不会验证业务任务入库或前端。检查和文件清单见 [hunyuan-local-checks.md](hunyuan-local-checks.md)。
+
+完整业务链路验收（模型、MySQL 和 Java 就绪后进行）：
 
 1. 页面生成同一输入，证明模型确实能运行，而非仍下载。
 2. `GET /api/generation/capabilities` 必须 mode=HUNYUAN_LOCAL、simulated=false、generationAvailable=true、真实 modelId。
@@ -125,10 +132,21 @@ Gradio 自身临时上传/输出文件由模型服务缓存策略管理，Java �
 
 诊断：
 
-- 连接拒绝：检查实际监听端口，不是只看 Python 进程；当前观察就是下载中且未监听。
+- 连接拒绝：检查实际监听端口，不是只看 Python 进程；不要将存在进程等同于端口就绪；本次重启后已确认 7860 监听。
 - metadata 不匹配：检查 Gradio 版本、Use via API、输入 image_mode、model-id/subfolder。Java 不自动迁移版本或协议。
 - 生成失败：按 Java taskId、DB 内 provider_task_id/remote_reference 和 Python terminal 日志核对，浏览器只显示公开错误码，不回显内部路径/原始异常。
 - 提交不确定：先在 Python 缓存/日志找 eventId/生成文件，禁止自动重提同一个远端执行。
 - 模型服务重启：旧事件未必能恢复，明确失败；不要把另一个 app_id 的结果当原任务。
 
 未来 GPU 部署：运行同样已核对的 Gradio 协议，修改 HUNYUAN_BASE_URL（可含反向代理路径前缀）和服务凭证即可；上传实际字节、不共享 Mac 绝对路径。先验证 GPU 的模型/协议和 profile，再调整候选 STANDARD 与 profile-id，不需要改账号、任务、作品等业务接口。当前仅允许从该配置服务同源下载，CDN/对象存储来源需以后显式加入受控策略。
+
+### 截图中的 index 0 越界
+
+旧进程通过固定参数也可复现 `index 0 is out of bounds for dimension 0 with size 0`，API 未返回 Python 完整堆栈。以相同启动参数和缓存权重重启后，Python 和 Java 两次生成均成功。缺少原进程 traceback，不能确认根因已定位或将其断言为输入图片问题。另已修复两个生成入口未共享队列的并发缺口；共享 pipeline 的可变 scheduler 必须串行访问。后续错误需结合模型终端完整 traceback 定位，不能用默认种子或返回假 GLB 掩盖。
+
+本次模型日志保存在 `/tmp/formaspace-gradio-runtime.log`（重启前验证）与 `/tmp/formaspace-gradio-serial.log`（当前串行配置）；Java 实测日志 `/tmp/formaspace-real-java.log`、`/tmp/formaspace-real-java-serial.log`；串行配置重启后已再次通过 Java 实测（11.8 秒，同样大小的 GLB）。临时日志不作为部署配置，不包含应用 JWT。
+
+
+## 后续本地基础服务验证
+
+2026-11-17，MySQL 已通过独立 Compose 容器启动（本机 3307），完整 Java 启动与 Flyway V1～V4 成功，健康接口返回 UP。本地真实 SMTP 验证亦已通过，详见 local-mysql.md 与 local-mail.md。上文 MySQL 不可用属于此前检查记录；真实生成业务任务→作品入库→前端预览/下载整条链路仍待验收。
