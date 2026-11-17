@@ -53,6 +53,7 @@ public class HunyuanGenerationWorker {
     }
 
     private void submit(GenerationTaskEntity task) {
+        log.info("Hunyuan task submitting: taskId={}", task.getId());
         try {
             var file=files.requireOwned(task.getSourceFileId(),task.getUserId(),FilePurpose.SOURCE_IMAGE);
             var parameters=snapshots.decode(task.getResolvedParameters(),ResolvedGenerationParameters.class);
@@ -61,6 +62,7 @@ public class HunyuanGenerationWorker {
             String eventId=json.readTree(submitted.remoteReference()).path("eventId").asString();
             try {
                 tasks.submittedReal(task.getId(),submitted.remoteReference(),eventId,clock.instant());
+                log.info("Hunyuan task accepted: taskId={}", task.getId());
             } catch (RuntimeException exception) {
                 // Event ID is operational metadata, never sent to the browser. Do not re-submit on storage failure.
                 log.error("Hunyuan accepted event but persistence failed: taskId={}, eventId={}, type={}",
@@ -94,10 +96,15 @@ public class HunyuanGenerationWorker {
         } catch (InferenceClientException exception) { fail(task.getId(),exception.getErrorCode()); }
         catch (IOException exception) {
             int failures=task.getQueryFailures()==null?0:task.getQueryFailures();
-            if (failures>=properties.getHunyuanLocal().getMaximumRetries()) { fail(task.getId(),ErrorCode.INFERENCE_UNAVAILABLE); return; }
+            if (failures>=properties.getHunyuanLocal().getMaximumRetries()) {
+                log.warn("Hunyuan connection retries exhausted: taskId={}, phase=QUERY_OR_DOWNLOAD, retries={}, type={}",
+                        task.getId(), failures, exception.getClass().getSimpleName());
+                fail(task.getId(),ErrorCode.INFERENCE_UNAVAILABLE); return;
+            }
             long seconds=properties.getHunyuanLocal().getRetryInterval().toSeconds()* (1L<<failures);
             tasks.retryReal(task.getId(),clock.instant().plusSeconds(Math.max(1,seconds)),clock.instant());
-            log.warn("Hunyuan connection retry scheduled: taskId={}, attempt={}",task.getId(),failures+1);
+            log.warn("Hunyuan connection retry scheduled: taskId={}, phase=QUERY_OR_DOWNLOAD, attempt={}, delaySeconds={}, type={}",
+                    task.getId(),failures+1,Math.max(1,seconds),exception.getClass().getSimpleName());
         } catch (BusinessException exception) { fail(task.getId(),exception.getErrorCode()); }
     }
 

@@ -87,13 +87,20 @@ formaspace:
       maximum-retries: ${HUNYUAN_MAXIMUM_RETRIES:3}
       model-id: ${HUNYUAN_MODEL_ID:tencent/Hunyuan3D-2mini}
       subfolder: ${HUNYUAN_SUBFOLDER:hunyuan3d-dit-v2-mini}
-      profile-id: ${HUNYUAN_PROFILE_ID:hunyuan-mini-mps-candidate-v1}
+      profile-id: ${HUNYUAN_PROFILE_ID:hunyuan-mini-mps-adjustable-v2}
       authorization: ${HUNYUAN_AUTHORIZATION:}
       num-chunks: ${HUNYUAN_NUM_CHUNKS:1000}
+      minimum-steps: ${HUNYUAN_MINIMUM_STEPS:1}
+      maximum-steps: ${HUNYUAN_MAXIMUM_STEPS:100}
+      minimum-guidance: ${HUNYUAN_MINIMUM_GUIDANCE:0}
+      maximum-guidance: ${HUNYUAN_MAXIMUM_GUIDANCE:10}
+      minimum-octree-resolution: ${HUNYUAN_MINIMUM_OCTREE_RESOLUTION:16}
+      maximum-octree-resolution: ${HUNYUAN_MAXIMUM_OCTREE_RESOLUTION:512}
+      maximum-voxel-steps: ${HUNYUAN_MAXIMUM_VOXEL_STEPS:13421772800}
       standard-preset:
-        inference-steps: ${HUNYUAN_INFERENCE_STEPS:5}
+        inference-steps: ${HUNYUAN_INFERENCE_STEPS:30}
         guidance-scale: ${HUNYUAN_GUIDANCE_SCALE:5}
-        octree-resolution: ${HUNYUAN_OCTREE_RESOLUTION:128}
+        octree-resolution: ${HUNYUAN_OCTREE_RESOLUTION:256}
     profile-id: mock-v1
     minimum-steps: 1
     maximum-steps: 20

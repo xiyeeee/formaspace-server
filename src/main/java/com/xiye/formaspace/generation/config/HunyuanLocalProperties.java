@@ -31,10 +31,24 @@ public class HunyuanLocalProperties {
     @NotBlank
     private String subfolder = "hunyuan3d-dit-v2-mini";
     @NotBlank
-    private String profileId = "hunyuan-mini-mps-candidate-v1";
+    private String profileId = "hunyuan-mini-mps-adjustable-v2";
     private String authorization;
     @Valid @NotNull
-    private GenerationProperties.Preset standardPreset = new GenerationProperties.Preset(5,5,128);
+    private GenerationProperties.Preset standardPreset = new GenerationProperties.Preset(30,5,256);
+    @Min(1) @Max(100)
+    private int minimumSteps = 1;
+    @Min(1) @Max(100)
+    private int maximumSteps = 100;
+    @DecimalMin("0.0")
+    private double minimumGuidance = 0;
+    @DecimalMin("0.0")
+    private double maximumGuidance = 10;
+    @Min(16) @Max(512)
+    private int minimumOctreeResolution = 16;
+    @Min(16) @Max(512)
+    private int maximumOctreeResolution = 512;
+    @Min(1)
+    private long maximumVoxelSteps = 13_421_772_800L;
     @Min(1000) @Max(5000000)
     private int numChunks = 1000;
 }

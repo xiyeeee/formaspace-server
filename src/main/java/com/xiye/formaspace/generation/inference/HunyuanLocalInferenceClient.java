@@ -8,6 +8,7 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.time.*;
 import java.util.*;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.*;
@@ -19,6 +20,7 @@ import org.springframework.web.client.RestClientException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+@Slf4j
 @Component
 @ConditionalOnProperty(prefix="formaspace.generation", name="mode", havingValue="HUNYUAN_LOCAL")
 public class HunyuanLocalInferenceClient implements ModelInferenceClient {
@@ -79,6 +81,8 @@ public class HunyuanLocalInferenceClient implements ModelInferenceClient {
 
     public synchronized Readiness readiness() {
         if (cached != null && checkedAt.plusSeconds(5).isAfter(clock.instant())) { return cached; }
+        Readiness previous = cached;
+        String failureType = "METADATA_MISMATCH";
         checkedAt = clock.instant();
         try {
             var config = readJson(metadata, endpoint("/config"));
@@ -107,7 +111,18 @@ public class HunyuanLocalInferenceClient implements ModelInferenceClient {
                     && rgba && modelMarker && !config.path("app_id").isMissingNode();
             cached = new Readiness(compatible, config.path("app_id").asString(""));
         } catch (IOException | RuntimeException exception) {
+            Throwable cause = exception;
+            while (cause.getCause() != null && cause.getCause() != cause) cause = cause.getCause();
+            failureType = cause.getClass().getSimpleName();
             cached = new Readiness(false, null);
+        }
+        if (previous == null || previous.ready() != cached.ready()) {
+            if (cached.ready()) {
+                log.info("Hunyuan service ready: host={}, port={}", properties.getBaseUrl().getHost(), properties.getBaseUrl().getPort());
+            } else {
+                log.warn("Hunyuan service unavailable: host={}, port={}, type={}",
+                        properties.getBaseUrl().getHost(), properties.getBaseUrl().getPort(), failureType);
+            }
         }
         return cached;
     }
@@ -277,7 +292,7 @@ public class HunyuanLocalInferenceClient implements ModelInferenceClient {
                 if (!response.getStatusCode().is2xxSuccessful()) { throw new IOException("Model metadata unavailable"); }
                 return parse(response.getBody(), 2*1024*1024);
             });
-        } catch (RestClientException exception) { throw new IOException("Model metadata unavailable"); }
+        } catch (RestClientException exception) { throw new IOException("Model metadata unavailable", exception); }
     }
 
     private IOException unwrap(RestClientException exception, ErrorCode fallback) {

@@ -3,6 +3,7 @@ package com.xiye.formaspace.generation.parameter;
 import com.xiye.formaspace.common.exception.*;
 import com.xiye.formaspace.generation.config.GenerationProperties;
 import com.xiye.formaspace.generation.dto.*;
+import com.xiye.formaspace.generation.enums.GenerationMode;
 import java.security.SecureRandom;
 import org.springframework.stereotype.Component;
 
@@ -45,7 +46,12 @@ public class GenerationParameterResolver {
     }
 
     private void validateCombination(int steps, double guidance, int octree) {
-        // This joint product resource budget is independent of official UI slider ranges.
+        if (steps <= 0 || octree <= 0 || !Double.isFinite(guidance)) {
+            throw new BusinessException(ErrorCode.INVALID_GENERATION_PARAMETERS);
+        }
+        // Local ranges describe the UI reference, not an application-level inference limit.
+        if (profile.getMode() == GenerationMode.HUNYUAN_LOCAL) return;
+        // Mock retains its simulated resource policy.
         double voxelSteps = (double) steps * octree * octree * octree;
         if (steps < profile.activeProfile().minimumSteps() || steps > profile.activeProfile().maximumSteps() || !Double.isFinite(guidance)
                 || guidance < profile.activeProfile().minimumGuidance() || guidance > profile.activeProfile().maximumGuidance()

@@ -24,7 +24,7 @@ public enum ErrorCode {
     STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "文件存储暂时不可用"),
     INVALID_GENERATION_PARAMETERS(HttpStatus.BAD_REQUEST, "生成参数不合法或超出部署限制"),
     UNSUPPORTED_CAPABILITY(HttpStatus.BAD_REQUEST, "当前部署不支持所选能力"),
-    INFERENCE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "推理功能尚未启用"),
+    INFERENCE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "推理服务未就绪或连接中断，请检查模型服务"),
     IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "该幂等键已用于不同请求"),
     GENERATION_LIMIT_REACHED(HttpStatus.TOO_MANY_REQUESTS, "未结束任务已达上限，请稍后重试"),
     MOCK_RESULT_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "未配置演示模型，模拟任务无法完成"),

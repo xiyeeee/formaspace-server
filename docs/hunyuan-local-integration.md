@@ -50,7 +50,7 @@ texture 第一版固定 false，format 固定 GLB。quality 只由 Java 选择 p
 
 ## 模型与 profile
 
-默认真实 profile 为 `hunyuan-mini-mps-candidate-v1`，只开放 STANDARD：5 步、guidance=5、octree=128、numChunks=1000。高级参数可显式传这些值，但超出该 profile 的 steps/guidance/octree 会拒绝，不钳制。removeBackground 支持 true/false，seed 可指定或由 Java 首次创建时生成。
+当前真实 profile 为 `hunyuan-mini-mps-adjustable-v2`，只开放 STANDARD，默认 30 步、guidance=5、octree=256、numChunks=1000。根据运行中 Gradio 的 `/config`，steps 支持 1～100，octree 支持 16～512 的整数覆盖；guidance 使用可配置的应用范围 0～10。removeBackground 支持 true/false，seed 可指定或由 Java 首次创建时生成。原 v1 的 5 步 / 128 实测仍仅适用于当时配置，不能据此宣称新默认值或 512 已完成性能验证。
 
 该低资源配置已用 `assets/example_images/004.png` 实测：seed=1234，5 步、guidance=5、octree=128、numChunks=1000、removeBackground=true、randomize_seed=false，生成 51,284 顶点/102,488 面。Python 调用推理约 11 秒，Java 完整协议测试约 14 秒；这是单图功能验证，不是质量或最佳性能保证。通过环境变量修改候选 preset 时，应在本地确认效果并更新 profile-id。HIGH 当前不开放，mock 的 HIGH 不会自动继承到真实模式。
 
@@ -89,8 +89,8 @@ export HUNYUAN_BASE_URL=http://127.0.0.1:7860
 | HUNYUAN_TASK_TIMEOUT | 30m，整个任务截止时间 |
 | HUNYUAN_RETRY_INTERVAL / MAXIMUM_RETRIES | 5s / 3，查询或下载临时失败按 5/10/20 秒有界退避 |
 | HUNYUAN_MODEL_ID / SUBFOLDER | tencent/Hunyuan3D-2mini / hunyuan3d-dit-v2-mini |
-| HUNYUAN_PROFILE_ID | hunyuan-mini-mps-candidate-v1 |
-| HUNYUAN_INFERENCE_STEPS / GUIDANCE_SCALE / OCTREE_RESOLUTION | 5 / 5 / 128，仅开放该 STANDARD preset |
+| HUNYUAN_PROFILE_ID | hunyuan-mini-mps-adjustable-v2 |
+| HUNYUAN_INFERENCE_STEPS / GUIDANCE_SCALE / OCTREE_RESOLUTION | 30 / 5 / 256，STANDARD 预设，支持范围内高级覆盖 |
 | HUNYUAN_NUM_CHUNKS | 1000，仅服务端 |
 | HUNYUAN_AUTHORIZATION | 可选模型服务/反向代理凭证，环境注入 |
 
@@ -150,3 +150,7 @@ HUNYUAN_INTEGRATION_IMAGE="$PWD/../formaspace-inference/assets/example_images/00
 ## 后续本地基础服务验证
 
 2026-11-17，MySQL 已通过独立 Compose 容器启动（本机 3307），完整 Java 启动与 Flyway V1～V4 成功，健康接口返回 UP。本地真实 SMTP 验证亦已通过，详见 local-mysql.md 与 local-mail.md。上文 MySQL 不可用属于此前检查记录；真实生成业务任务→作品入库→前端预览/下载整条链路仍待验收。
+
+## 参数区间仅作参考
+
+根据最新交互要求，本地真实模式不再用步数、引导强度、几何分辨率区间或组合预算阻止自定义值。capabilities 对这三项返回 rangeAdvisory=true；参考值用于滑条，手填值原样保存与传递，不自动改成范围边界。模型是否能执行取决于本地 Gradio 与运行资源；本次没有启动超范围推理。旧 Java 进程需重启才能应用新策略。

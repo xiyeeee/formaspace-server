@@ -154,6 +154,6 @@ export HUNYUAN_BASE_URL=http://127.0.0.1:7860
 ./mvnw spring-boot:run
 ```
 
-需先准备已有数据库/JWT/HMAC 配置并等待模型完成下载、加载和实际监听。真实 STANDARD 默认是 5 步 / guidance 5 / octree 128 / numChunks 1000 的低资源候选，seed 最大 10000000，不继承 mock HIGH。**已通过 Java 客户端实际上传图片、等待 SSE 并下载校验真实 GLB（1,846,496 字节）；MySQL 已通过 Compose 启动，Java 完整启动及 Flyway V1～V4 已验证；真实生成任务/作品入库与前端端到端验收尚未完成。**
+需先准备已有数据库/JWT/HMAC 配置并等待模型完成下载、加载和实际监听。真实 STANDARD 默认是 30 步 / guidance 5 / octree 256 / numChunks 1000；steps 支持 1～100，octree 支持 16～512 的整数覆盖，seed 最大 10000000，不继承 mock HIGH。这些范围已核对本地 Gradio 元数据，高参数性能尚未实测。**原 5 步 / 128 配置已通过 Java 客户端实际上传图片、等待 SSE 并下载校验真实 GLB（1,846,496 字节）；MySQL 已通过 Compose 启动，Java 完整启动及 Flyway V1～V4 已验证；真实生成任务/作品入库与前端端到端验收尚未完成。**
 
 完整入口核对、参数顺序、配置、恢复边界和诊断见 [docs/hunyuan-local-integration.md](docs/hunyuan-local-integration.md)。模式切换前应先处理旧模式未结束任务，工作器不会跨模式接管。服务未就绪时上传/历史仍可用，capabilities 标记不可生成，新任务 503。

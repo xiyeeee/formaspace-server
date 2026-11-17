@@ -23,12 +23,13 @@ public class GenerationCapabilitiesService {
                 new QualityPreset(selected.simulated(), preset.inferenceSteps(), preset.guidanceScale(), preset.octreeResolution())));
         var standard = selected.presets().get(GenerationQuality.STANDARD);
         if (standard == null) { standard = selected.presets().values().iterator().next(); }
+        boolean rangeAdvisory = profile.getMode() == GenerationMode.HUNYUAN_LOCAL;
         Map<String, ParameterCapability> advanced = new LinkedHashMap<>();
         advanced.put("removeBackground", new ParameterCapability(true, true, null, null, null));
         advanced.put("seed", new ParameterCapability(true, null, 0, selected.maximumSeed(), null));
-        advanced.put("inferenceSteps", new ParameterCapability(true, standard.inferenceSteps(), selected.minimumSteps(), selected.maximumSteps(), null));
-        advanced.put("guidanceScale", new ParameterCapability(true, standard.guidanceScale(), selected.minimumGuidance(), selected.maximumGuidance(), null));
-        advanced.put("octreeResolution", new ParameterCapability(true, standard.octreeResolution(), null, null, List.copyOf(selected.octreeResolutions())));
+        advanced.put("inferenceSteps", new ParameterCapability(true, standard.inferenceSteps(), selected.minimumSteps(), selected.maximumSteps(), null, rangeAdvisory));
+        advanced.put("guidanceScale", new ParameterCapability(true, standard.guidanceScale(), selected.minimumGuidance(), selected.maximumGuidance(), null, rangeAdvisory));
+        advanced.put("octreeResolution", new ParameterCapability(true, standard.octreeResolution(), null, null, List.copyOf(selected.octreeResolutions()), rangeAdvisory));
         return new GenerationCapabilitiesVO(profile.getMode(), profile.getMode() == GenerationMode.MOCK
                 || (profile.getMode() == GenerationMode.HUNYUAN_LOCAL && readiness.available()),
                 profile.getMode() == GenerationMode.MOCK, selected.modelId(), selected.id(),

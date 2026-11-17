@@ -54,6 +54,19 @@ class GenerationConfigurationTests {
                 .isEqualTo(json.readTree(document.substring(start,end)));
     }
 
+    @Test
+    void realParameterRangesAreMarkedAsAdvisory() {
+        var properties = new GenerationProperties();
+        properties.setMode(GenerationMode.HUNYUAN_LOCAL);
+        var service = new GenerationCapabilitiesService(properties, new FileStorageProperties(),
+                org.mockito.Mockito.mock(com.xiye.formaspace.generation.service.GenerationReadiness.class));
+        var parameters = service.capabilities().advancedParameters();
+        assertThat(parameters.get("inferenceSteps").rangeAdvisory()).isTrue();
+        assertThat(parameters.get("guidanceScale").rangeAdvisory()).isTrue();
+        assertThat(parameters.get("octreeResolution").rangeAdvisory()).isTrue();
+        assertThat(parameters.get("seed").rangeAdvisory()).isFalse();
+    }
+
     @Configuration(proxyBeanMethods=false)
     static class JsonConfiguration {
         @Bean ObjectMapper mapper() { return JsonMapper.builder().build(); }

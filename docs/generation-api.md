@@ -125,28 +125,32 @@ numChunks 仅服务端配置（默认 8000），格式固定 GLB，不向前端�
         "defaultValue": true,
         "minimum": null,
         "maximum": null,
-        "allowedValues": null
+        "allowedValues": null,
+        "rangeAdvisory": false
       },
       "seed": {
         "supported": true,
         "defaultValue": null,
         "minimum": 0,
         "maximum": 2147483647,
-        "allowedValues": null
+        "allowedValues": null,
+        "rangeAdvisory": false
       },
       "inferenceSteps": {
         "supported": true,
         "defaultValue": 5,
         "minimum": 1,
         "maximum": 20,
-        "allowedValues": null
+        "allowedValues": null,
+        "rangeAdvisory": false
       },
       "guidanceScale": {
         "supported": true,
         "defaultValue": 5.0,
         "minimum": 0.0,
         "maximum": 10.0,
-        "allowedValues": null
+        "allowedValues": null,
+        "rangeAdvisory": false
       },
       "octreeResolution": {
         "supported": true,
@@ -156,7 +160,8 @@ numChunks 仅服务端配置（默认 8000），格式固定 GLB，不向前端�
         "allowedValues": [
           128,
           256
-        ]
+        ],
+        "rangeAdvisory": false
       }
     },
     "maximumVoxelSteps": 268435456,
@@ -248,12 +253,20 @@ curl -o model.glb http://127.0.0.1:8080/api/assets/<assetId>/download -H 'Author
 
 ## HUNYUAN_LOCAL 扩展
 
-接口路径、JWT、归属、ID、分页和幂等规则不变。capabilities 在真实模式返回 mode=HUNYUAN_LOCAL、simulated=false、modelId=tencent/Hunyuan3D-2mini、profileId=hunyuan-mini-mps-candidate-v1，simulationNotice=null；generationAvailable 取轻量模型服务元数据 readiness。未就绪拒绝新任务 503，已存在 key 的重放仍返回旧任务，不重新解析/随机。
+接口路径、JWT、归属、ID、分页和幂等规则不变。capabilities 在真实模式返回 mode=HUNYUAN_LOCAL、simulated=false、modelId=tencent/Hunyuan3D-2mini、profileId=hunyuan-mini-mps-adjustable-v2，simulationNotice=null；generationAvailable 取轻量模型服务元数据 readiness。未就绪拒绝新任务 503，已存在 key 的重放仍返回旧任务，不重新解析/随机。
 
-真实 profile 只开放 STANDARD：默认 steps=5、guidance=5、octree=128、numChunks=1000；seed 0～10000000，去背景可 true/false，texture=true/HIGH 拒绝。steps/guidance/octree 的有效范围与唯一 preset 相同，属于未实测的低资源候选，不是模型最佳配置。管理员可按已验证部署配置更新 preset 与 profile-id；前端以实时 capabilities 为准。
+真实 profile 只开放 STANDARD：默认 steps=30、guidance=5、octree=256、numChunks=1000；seed 0～10000000，去背景可 true/false，texture=true/HIGH 拒绝。当前 profileId 为 `hunyuan-mini-mps-adjustable-v2`。
+
+2026-11-17 已核对本地 Gradio `/config`：steps 支持 1～100，octree 支持 16～512、整数步进 1。真实 profile 按此开放，`octreeResolution.allowedValues` 返回全部允许整数；前端可使用滑条与数值输入。guidance 采用可配置的应用范围 0～10，Gradio Number 本身未声明上下限。`maximumVoxelSteps` 默认 13421772800，覆盖 100 × 512³，部署可收紧。
+
+范围分别通过 `HUNYUAN_MINIMUM_STEPS` / `HUNYUAN_MAXIMUM_STEPS`、`HUNYUAN_MINIMUM_OCTREE_RESOLUTION` / `HUNYUAN_MAXIMUM_OCTREE_RESOLUTION`、`HUNYUAN_MINIMUM_GUIDANCE` / `HUNYUAN_MAXIMUM_GUIDANCE`、`HUNYUAN_MAXIMUM_VOXEL_STEPS` 配置。numChunks 仍由服务端配置，不新增前端请求字段。此次仅验证元数据、参数解析和 UI，不表示已完成高参数性能实测。修改配置后须重启 Java；旧任务继续使用原始快照。
 
 新真实任务与作品 simulated=false。providerTaskId/远程引用/阶段/重试字段只供内部调度，不进入 VO。progress 仍为 null，前端只轮询；状态和结果访问路径不变。下载的是实际模型服务生成并经过 GLB 校验的文件，不是 mock 演示文件。
 
 新增公开错误码：INFERENCE_FAILED、INFERENCE_PROTOCOL_ERROR、INFERENCE_REFERENCE_LOST、INFERENCE_TIMEOUT、SUBMISSION_UNCERTAIN。任务失败时存入 errorCode/errorMessage，查询本身仍为 200；创建时服务不可用为 503 INFERENCE_UNAVAILABLE。查询网络错误有界退避，提交结果不明不自动重提。
 
 部署、恢复窗口、完整协议与当前未验证项见 [hunyuan-local-integration.md](hunyuan-local-integration.md)。
+
+## 本地真实参数的参考区间
+
+HUNYUAN_LOCAL 的 inferenceSteps、guidanceScale、octreeResolution 返回 rangeAdvisory=true；minimum/maximum/allowedValues 仅用于滑条与参考提示，不作为应用层硬限制。手动输入超出参考区间时，Java 不按范围、选项列表或 maximumVoxelSteps 拒绝或钳制；只要求步数和分辨率为正整数、引导强度为有限数值。模型服务仍可能拒绝执行，任务沿用已有失败状态与消息。种子范围、上传限制、鉴权和 MOCK 策略保持原契约。

@@ -52,12 +52,14 @@ public class GenerationProperties {
 
     public com.xiye.formaspace.generation.parameter.GenerationProfile activeProfile() {
         if (mode == GenerationMode.HUNYUAN_LOCAL) {
-            // A deliberately restricted candidate, not a claim of verified MPS quality/performance.
+            // UI limits verified against the local Gradio metadata; runtime performance depends on the deployment.
             var preset = hunyuanLocal.getStandardPreset();
             return new com.xiye.formaspace.generation.parameter.GenerationProfile(hunyuanLocal.getProfileId(),
-                    hunyuanLocal.getModelId(), false, 10_000_000L, preset.inferenceSteps(), preset.inferenceSteps(),
-                    preset.guidanceScale(), preset.guidanceScale(), List.of(preset.octreeResolution()),
-                    (long) preset.inferenceSteps()*preset.octreeResolution()*preset.octreeResolution()*preset.octreeResolution(),
+                    hunyuanLocal.getModelId(), false, 10_000_000L, hunyuanLocal.getMinimumSteps(), hunyuanLocal.getMaximumSteps(),
+                    hunyuanLocal.getMinimumGuidance(), hunyuanLocal.getMaximumGuidance(),
+                    java.util.stream.IntStream.rangeClosed(hunyuanLocal.getMinimumOctreeResolution(),
+                            hunyuanLocal.getMaximumOctreeResolution()).boxed().toList(),
+                    hunyuanLocal.getMaximumVoxelSteps(),
                     hunyuanLocal.getNumChunks(), Map.of(GenerationQuality.STANDARD, preset));
         }
         return new com.xiye.formaspace.generation.parameter.GenerationProfile(profileId, null, true,

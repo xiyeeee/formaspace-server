@@ -116,6 +116,68 @@ class GenerationParameterTests {
         new GenerationConfig(profile, new MockEnvironment());
     }
 
+
+    @Test
+    void realProfileUsesAdjustableGradioRangesAndPreservesExplicitValues() {
+        profile.setMode(GenerationMode.HUNYUAN_LOCAL);
+        var realResolver = new GenerationParameterResolver(profile);
+        var request = request();
+        var defaults = realResolver.resolve(realResolver.requested(request));
+        assertThat(defaults.inferenceSteps()).isEqualTo(30);
+        assertThat(defaults.octreeResolution()).isEqualTo(256);
+        assertThat(defaults.profileId()).isEqualTo("hunyuan-mini-mps-adjustable-v2");
+        assertThat(profile.activeProfile().octreeResolutions()).contains(16, 128, 256, 512);
+        assertThat(profile.activeProfile().octreeResolutions()).doesNotContain(15, 513);
+        var advanced = new AdvancedGenerationOptionsDTO();
+        advanced.setInferenceSteps(50);
+        advanced.setGuidanceScale(7.5);
+        advanced.setOctreeResolution(512);
+        advanced.setSeed(0L);
+        request.setAdvancedOptions(advanced);
+        var resolved = realResolver.resolve(realResolver.requested(request));
+        assertThat(resolved.inferenceSteps()).isEqualTo(50);
+        assertThat(resolved.guidanceScale()).isEqualTo(7.5);
+        assertThat(resolved.octreeResolution()).isEqualTo(512);
+        assertThat(resolved.seed()).isZero();
+        advanced.setInferenceSteps(100);
+        assertThat(realResolver.resolve(realResolver.requested(request)).inferenceSteps()).isEqualTo(100);
+        advanced.setInferenceSteps(150);
+        assertThat(realResolver.resolve(realResolver.requested(request)).inferenceSteps()).isEqualTo(150);
+        advanced.setInferenceSteps(30);
+        advanced.setOctreeResolution(768);
+        advanced.setGuidanceScale(15.0);
+        var unrestricted = realResolver.resolve(realResolver.requested(request));
+        assertThat(unrestricted.octreeResolution()).isEqualTo(768);
+        assertThat(unrestricted.guidanceScale()).isEqualTo(15.0);
+        advanced.setOctreeResolution(0);
+        assertThatThrownBy(() -> realResolver.resolve(realResolver.requested(request))).isInstanceOf(BusinessException.class);
+        advanced.setOctreeResolution(256);
+        advanced.setGuidanceScale(Double.NaN);
+        assertThatThrownBy(() -> realResolver.resolve(realResolver.requested(request))).isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void acceptsSubmittedRobotParametersWithoutReplacingExplicitValues() {
+        profile.setMode(GenerationMode.HUNYUAN_LOCAL);
+        var realResolver = new GenerationParameterResolver(profile);
+        var request = request();
+        request.setSourceFileId("6");
+        var advanced = new AdvancedGenerationOptionsDTO();
+        advanced.setInferenceSteps(50);
+        advanced.setGuidanceScale(10.0);
+        advanced.setOctreeResolution(512);
+        advanced.setRemoveBackground(false);
+        advanced.setSeed(0L);
+        request.setAdvancedOptions(advanced);
+        var resolved = realResolver.resolve(realResolver.requested(request));
+        assertThat(resolved.inferenceSteps()).isEqualTo(50);
+        assertThat(resolved.guidanceScale()).isEqualTo(10.0);
+        assertThat(resolved.octreeResolution()).isEqualTo(512);
+        assertThat(resolved.removeBackground()).isFalse();
+        assertThat(resolved.seed()).isZero();
+        assertThat(resolved.generateTexture()).isFalse();
+    }
+
     private void assertRejected(CreateGenerationDTO request, ErrorCode code) {
         assertThatThrownBy(() -> resolver.resolve(resolver.requested(request)))
                 .isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.getErrorCode()).isEqualTo(code));
