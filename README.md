@@ -42,6 +42,14 @@
 
 默认监听 `127.0.0.1:8080`。生产设置 `SPRING_PROFILES_ACTIVE=prod`，明确注入数据库地址/凭证、两把密钥和前端 CORS 来源。生产接入 HTTPS；不要把 SMTP/JWT 凭证放入 Git、请求日志或命令行示例值中。
 
+## 接口日志
+
+调用 `/api/**` 后控制台输出请求方法、路径、HTTP 状态、耗时（毫秒）和 requestId。正常响应为 INFO，4xx 为 WARN，5xx 为 ERROR；鉴权失败与 CORS 拦截也会记录。响应头 `X-Request-Id` 可与控制台对应，业务异常另输出错误码和同一编号。请求参数、正文、响应正文、Authorization、Cookie、密码及验证码不输出。
+
+```text
+接口请求 method=GET path=/api/auth/me status=401 durationMs=2 requestId=...
+```
+
 ## 配置
 
 | 变量 | 默认值与用途 |
@@ -117,7 +125,7 @@ export AUTH_TEST_DB_USERNAME=formaspace_test
 ## 图片与模拟生成
 
 - 上传只接受一个 JPEG/PNG，默认 10MiB / 1600 万像素；先读尺寸再完整解码。存储默认用户主目录 `.formaspace/storage`，随机存储键、禁止路径穿越/符号链接、临时写后原子移动；数据库回滚补偿清理文件。
-- 默认 `INFERENCE_MODE=DISABLED`，不能新建任务。`SPRING_PROFILES_ACTIVE=local` 加 `INFERENCE_MODE=MOCK` 后才启动数据库驱动的单实例模拟工作器；prod 禁止 mock。
+- 全局默认 `INFERENCE_MODE=DISABLED`，不能新建任务；本地 `local` profile 默认 `HUNYUAN_LOCAL`，可显式设置 `INFERENCE_MODE=DISABLED` 关闭。`SPRING_PROFILES_ACTIVE=local` 加 `INFERENCE_MODE=MOCK` 后才启动数据库驱动的单实例模拟工作器；prod 禁止 mock。
 - MOCK_DEMO_GLB 可设为你本地提供的自包含 GLB 绝对路径。有效时复制为当前用户作品；不配置时任务失败 MOCK_RESULT_NOT_CONFIGURED，不生成假地址。模拟不执行推理/去背景/贴图，参数不会改变演示模型。
 - 新任务要求 UUID Idempotency-Key，用户+key 唯一。用户行锁保护默认一个未结束任务的容量；同 key 重放使用数据库快照，不重新随机 seed。profile 的 STANDARD/HIGH 只是 mock 测试配置，未在 M5 上验证。
 - 参数配置位于 application.yml 的 formaspace.generation：预设、steps/guidance 边界、octree 离散值、组合 maximum-voxel-steps 和仅服务端 num-chunks。未来真实模式必须使用真实验证过的新 profile。

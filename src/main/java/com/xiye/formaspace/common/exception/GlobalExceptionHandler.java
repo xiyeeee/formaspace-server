@@ -20,6 +20,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Object> handleBusiness(BusinessException exception) {
         var code = exception.getErrorCode();
+        log.warn("业务请求未完成 code={} requestId={}", code.name(), org.slf4j.MDC.get("requestId"));
         var response = ResponseEntity.status(code.getHttpStatus());
         if (exception.getRetryAfterSeconds() != null) {
             response.header(HttpHeaders.RETRY_AFTER, exception.getRetryAfterSeconds().toString());
@@ -92,6 +93,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private void logUnexpected(Exception exception) {
         // Do not log exception messages, causes or request bodies: these may contain SQL or credentials.
         var trace = java.util.Arrays.stream(exception.getStackTrace()).limit(12).toList();
-        log.error("Unhandled server exception: type={}, frames={}", exception.getClass().getName(), trace);
+        log.error("Unhandled server exception: type={}, frames={}, requestId={}",
+                exception.getClass().getName(), trace, org.slf4j.MDC.get("requestId"));
     }
 }

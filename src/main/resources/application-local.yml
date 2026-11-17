@@ -3,5 +3,7 @@ spring:
     import: optional:file:${user.home}/.config/formaspace/mail.properties
 
 formaspace:
+  generation:
+    mode: ${INFERENCE_MODE:HUNYUAN_LOCAL}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}

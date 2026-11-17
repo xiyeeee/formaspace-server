@@ -35,7 +35,7 @@ docker compose --env-file .env.mysql ps
 bash scripts/run-local.sh
 ```
 
-脚本加载 `.env.mysql`，启用 local profile，首次生成两把独立密钥保存到 Git 忽略的 `.env.auth`，以后复用。外部已设置的 JWT/HMAC 密钥优先。需要真实生成时运行 `INFERENCE_MODE=HUNYUAN_LOCAL bash scripts/run-local.sh`；邮件配置见 [本地真实邮件](local-mail.md)。
+脚本加载 `.env.mysql`，启用 local profile，首次生成两把独立密钥保存到 Git 忽略的 `.env.auth`，以后复用。外部已设置的 JWT/HMAC 密钥优先。local profile 默认启用 HUNYUAN_LOCAL（真实生成）；需要关闭时运行 `INFERENCE_MODE=DISABLED bash scripts/run-local.sh`；邮件配置见 [本地真实邮件](local-mail.md)。
 
 脚本默认使用 `scripts/maven-local-settings.xml` 中的官方 Maven Central，绕开本机全局镜像的解析问题，不修改全局 Maven 配置。如需其他仓库，可通过 `FORMASPACE_MAVEN_SETTINGS` 指定自己的 settings 文件。
 

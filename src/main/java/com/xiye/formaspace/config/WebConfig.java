@@ -30,7 +30,7 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedOrigins(cors.getAllowedOrigins().toArray(String[]::new))
                 .allowedMethods("GET", "POST", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("Authorization", "Content-Type", "Accept", "Idempotency-Key")
-                .exposedHeaders("Retry-After", "Content-Disposition")
+                .exposedHeaders("Retry-After", "Content-Disposition", "X-Request-Id")
                 .allowCredentials(false)
                 .maxAge(3600);
         if (environment.matchesProfiles("local") && !environment.matchesProfiles("prod")) {
