@@ -55,11 +55,11 @@ public class MockGenerationWorker {
                 var file = files.requireOwned(task.getSourceFileId(), task.getUserId(), FilePurpose.SOURCE_IMAGE);
                 var parameters = snapshots.decode(task.getResolvedParameters(), ResolvedGenerationParameters.class);
                 client.submit(new Submission(task.getId(), parameters,
-                        new SourceImage(file.getId(), file.getContentType(), () -> files.open(file).stream())));
+                        new SourceImage(file.getId(), file.getContentType(), () -> files.open(file).stream()), null));
                 tasks.processing(task.getId(), clock.instant());
                 return;
             }
-            var result = client.query(task.getId());
+            var result = client.query("mock:" + task.getId());
             if (!result.completed()) { return; }
             if (result.failure() != null) { fail(task.getId(), result.failure()); return; }
             publisher.publish(task.getId(), client, result.resultReference());

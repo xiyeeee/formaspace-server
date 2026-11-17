@@ -14,23 +14,27 @@ import org.springframework.stereotype.Service;
 public class GenerationCapabilitiesService {
     private final GenerationProperties profile;
     private final FileStorageProperties upload;
+    private final GenerationReadiness readiness;
 
     public GenerationCapabilitiesVO capabilities() {
+        var selected = profile.activeProfile();
         var presets = new EnumMap<GenerationQuality, QualityPreset>(GenerationQuality.class);
-        profile.getQualityPresets().forEach((quality, preset) -> presets.put(quality,
-                new QualityPreset(true, preset.inferenceSteps(), preset.guidanceScale(), preset.octreeResolution())));
-        var standard = profile.getQualityPresets().get(GenerationQuality.STANDARD);
-        if (standard == null) { standard = profile.getQualityPresets().values().iterator().next(); }
+        selected.presets().forEach((quality, preset) -> presets.put(quality,
+                new QualityPreset(selected.simulated(), preset.inferenceSteps(), preset.guidanceScale(), preset.octreeResolution())));
+        var standard = selected.presets().get(GenerationQuality.STANDARD);
+        if (standard == null) { standard = selected.presets().values().iterator().next(); }
         Map<String, ParameterCapability> advanced = new LinkedHashMap<>();
         advanced.put("removeBackground", new ParameterCapability(true, true, null, null, null));
-        advanced.put("seed", new ParameterCapability(true, null, 0, Integer.MAX_VALUE, null));
-        advanced.put("inferenceSteps", new ParameterCapability(true, standard.inferenceSteps(), profile.getMinimumSteps(), profile.getMaximumSteps(), null));
-        advanced.put("guidanceScale", new ParameterCapability(true, standard.guidanceScale(), profile.getMinimumGuidance(), profile.getMaximumGuidance(), null));
-        advanced.put("octreeResolution", new ParameterCapability(true, standard.octreeResolution(), null, null, List.copyOf(profile.getOctreeResolutions())));
-        return new GenerationCapabilitiesVO(profile.getMode(), profile.getMode() == GenerationMode.MOCK,
-                profile.getMode() == GenerationMode.MOCK, null, profile.getProfileId(),
-                "仅模拟参数与任务链路，不执行真实推理、去背景或贴图；参数不会改变演示模型。",
-                List.of("SINGLE_IMAGE"), presets, false, true, advanced, profile.getMaximumVoxelSteps(),
+        advanced.put("seed", new ParameterCapability(true, null, 0, selected.maximumSeed(), null));
+        advanced.put("inferenceSteps", new ParameterCapability(true, standard.inferenceSteps(), selected.minimumSteps(), selected.maximumSteps(), null));
+        advanced.put("guidanceScale", new ParameterCapability(true, standard.guidanceScale(), selected.minimumGuidance(), selected.maximumGuidance(), null));
+        advanced.put("octreeResolution", new ParameterCapability(true, standard.octreeResolution(), null, null, List.copyOf(selected.octreeResolutions())));
+        return new GenerationCapabilitiesVO(profile.getMode(), profile.getMode() == GenerationMode.MOCK
+                || (profile.getMode() == GenerationMode.HUNYUAN_LOCAL && readiness.available()),
+                profile.getMode() == GenerationMode.MOCK, selected.modelId(), selected.id(),
+                profile.getMode() == GenerationMode.HUNYUAN_LOCAL ? null
+                        : "仅模拟参数与任务链路，不执行真实推理、去背景或贴图；参数不会改变演示模型。",
+                List.of("SINGLE_IMAGE"), presets, false, true, advanced, selected.maximumVoxelSteps(),
                 new UploadConstraints(List.of("JPEG", "PNG"), upload.getMaxUploadBytes(), upload.getMaxImagePixels()));
     }
 }

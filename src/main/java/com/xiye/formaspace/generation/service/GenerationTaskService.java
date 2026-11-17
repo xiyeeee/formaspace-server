@@ -26,17 +26,19 @@ public class GenerationTaskService {
     private final GenerationParameterResolver resolver;
     private final GenerationSnapshots snapshots;
     private final GenerationProperties properties;
+    private final GenerationReadiness readiness;
     private final TransactionTemplate transactions;
 
     public GenerationTaskService(GenerationTaskMapper tasks, UserMapper users, FileService files,
             GenerationParameterResolver resolver, GenerationSnapshots snapshots, GenerationProperties properties,
-            PlatformTransactionManager manager) {
+            PlatformTransactionManager manager, GenerationReadiness readiness) {
         this.tasks = tasks;
         this.users = users;
         this.files = files;
         this.resolver = resolver;
         this.snapshots = snapshots;
         this.properties = properties;
+        this.readiness = readiness;
         transactions = new TransactionTemplate(manager);
     }
 
@@ -45,6 +47,8 @@ public class GenerationTaskService {
         var requested = resolver.requested(request);
         String requestedJson = snapshots.encode(requested);
         String fingerprint = snapshots.fingerprint(requestedJson);
+        // Metadata/network calls must happen before taking a database row lock; replay remains allowed below.
+        boolean available = properties.getMode() != GenerationMode.HUNYUAN_LOCAL || readiness.available();
         return transactions.execute(status -> {
             // One user row serializes both idempotency lookup and active-capacity decisions across keys.
             if (users.lockActiveIdentity(userId) == null) { throw new BusinessException(ErrorCode.UNAUTHORIZED); }
@@ -55,7 +59,7 @@ public class GenerationTaskService {
                 }
                 return new Creation(toVO(tasks.findOwned(previous.getId(), userId)), false);
             }
-            if (properties.getMode() == GenerationMode.DISABLED) {
+            if (properties.getMode() == GenerationMode.DISABLED || !available) {
                 throw new BusinessException(ErrorCode.INFERENCE_UNAVAILABLE);
             }
             files.requireOwned(Long.parseLong(request.getSourceFileId()), userId, FilePurpose.SOURCE_IMAGE);
@@ -68,7 +72,10 @@ public class GenerationTaskService {
             task.setSourceFileId(Long.parseLong(request.getSourceFileId()));
             task.setProvider("HUNYUAN_LOCAL");
             task.setStatus(GenerationStatus.PENDING);
-            task.setSimulated(true);
+            task.setSimulated(properties.getMode() == GenerationMode.MOCK);
+            task.setExecutionMode(properties.getMode().name());
+            task.setModelId(properties.activeProfile().modelId());
+            task.setQueryFailures(0);
             task.setIdempotencyKey(key);
             task.setRequestHash(fingerprint);
             task.setRequestedParameters(requestedJson);

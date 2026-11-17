@@ -1,6 +1,6 @@
 # FormaSpace Server
 
-基于现有 Spring Boot 单体的图片转 3D 应用后端。已完成基础工程、注册邮箱验证码、统一注册、用户名/邮箱密码登录、JWT 鉴权和当前用户查询。账号对接以 [docs/auth-api.md](docs/auth-api.md) 为准；图片、生成参数、任务与只读作品链路见 [docs/generation-api.md](docs/generation-api.md)。本轮没有接入真实腾讯模型。
+基于现有 Spring Boot 单体的图片转 3D 应用后端。已完成基础工程、注册邮箱验证码、统一注册、用户名/邮箱密码登录、JWT 鉴权和当前用户查询。账号对接以 [docs/auth-api.md](docs/auth-api.md) 为准；图片、生成参数、任务与只读作品链路见 [docs/generation-api.md](docs/generation-api.md)。已增加本地 Gradio 的 HUNYUAN_LOCAL 对接；真实生成联调是否完成以 docs/hunyuan-local-integration.md 为准。
 
 ## 环境和依赖
 
@@ -66,7 +66,7 @@ IP 限流直接读取实际连接地址，`server.forward-headers-strategy=none`
 
 ## 分层与持久化
 
-`com.xiye.formaspace` 按业务域组织，域内区分 controller / service / dto / vo / entity / mapper / enums。`auth/security` 集中身份访问和安全错误输出；`config` 负责 Security、JWT、CORS、UTC 与 MyBatis；`common` 保存响应、异常和共享校验。文件、生成任务与只读作品接口已经实现；真实推理未接通，默认 disabled，不提供占位成功接口。
+`com.xiye.formaspace` 按业务域组织，域内区分 controller / service / dto / vo / entity / mapper / enums。`auth/security` 集中身份访问和安全错误输出；`config` 负责 Security、JWT、CORS、UTC 与 MyBatis；`common` 保存响应、异常和共享校验。文件、生成任务与只读作品接口已经实现；默认 disabled，真实推理通过显式 HUNYUAN_LOCAL 对接本地 Gradio，不提供占位成功接口。
 
 - Entity 只持久化，VO 输出 ID 字符串，时间为 Instant/UTC ISO-8601 Z。MySQL DATETIME(6) 通过 UtcInstantTypeHandler 显式映射 UTC；Java 不依赖主机时区。
 - 邮箱 strip + Locale.ROOT 小写，保留点和 + 后缀，ASCII 最大 254；用户名统一小写、3～32 位字母/数字/下划线。唯一索引和 CHECK 与应用规则对齐，不能只查询查重。昵称默认用户名，用户名第一版不可改。
@@ -81,7 +81,8 @@ IP 限流直接读取实际连接地址，`server.forward-headers-strategy=none`
 - V1 原样保留：六张业务表，含验证码槽与数据库限流桶。
 - V2 新增 fs_user.last_login_at、验证码 challenge_id / send_status；原验证码因没有挑战绑定摘要而置为不可验证状态。sent_at 表示预留发送的时间，失败/待发送也遵守冷却。
 - V3 新增任务幂等键、请求指纹、参数 JSON 快照、schema/profile/model 标识和 simulated，以及作品 simulated。
-- 以后继续新增 V4 等，禁止修改已应用迁移；不创建 Session、刷新 Token 表或默认用户。
+- V4 新增 execution_mode、远程事件/结果引用、阶段、查询失败计数、下次重试与任务截止时间。
+- 以后继续新增 V5 等，禁止修改已应用迁移；不创建 Session、刷新 Token 表或默认用户。
 
 验证码/限流数据库流程、SMTP 崩溃边界见 [auth-api.md](docs/auth-api.md)。过期记录不参与当前窗口计算；运维可按 expires_at 索引分批清理过期限流桶（本轮没有新增清理调度）。
 
@@ -129,3 +130,18 @@ export GENERATION_TEST_DB_USERNAME=formaspace_test
 ```
 
 该类关闭自动调度启动延时，用新工作器实例手动推进时间验证恢复，覆盖完整文件链路、归属、MySQL 幂等和容量并发、disabled、模拟失败与终态保护，不使用 H2。实际通过与未验证项见 docs/generation-checks.md。腾讯官方源码检查记录见 docs/hunyuan-source-review.md。
+
+## 本地混元真实模式
+
+新增 `INFERENCE_MODE=HUNYUAN_LOCAL`，保留 DISABLED/MOCK。使用本地已核对的 Gradio 6.32.0 shape_generation HTTP/SSE API，不调用 /send，不新增 Python 中转。真实任务、作品 simulated=false；结果经 GLB 验证再存入自有文件系统，前端上传/轮询/预览下载接口保持不变。
+
+```sh
+export SPRING_PROFILES_ACTIVE=local
+export INFERENCE_MODE=HUNYUAN_LOCAL
+export HUNYUAN_BASE_URL=http://127.0.0.1:7860
+./mvnw spring-boot:run
+```
+
+需先准备已有数据库/JWT/HMAC 配置并等待模型完成下载、加载和实际监听。真实 STANDARD 默认是 5 步 / guidance 5 / octree 128 / numChunks 1000 的低资源候选，seed 最大 10000000，不继承 mock HIGH。**本轮检查时 7860 尚未监听、MySQL 不可用，没有完成真实图片生成验证。**
+
+完整入口核对、参数顺序、配置、恢复边界和诊断见 [docs/hunyuan-local-integration.md](docs/hunyuan-local-integration.md)。模式切换前应先处理旧模式未结束任务，工作器不会跨模式接管。服务未就绪时上传/历史仍可用，capabilities 标记不可生成，新任务 503。

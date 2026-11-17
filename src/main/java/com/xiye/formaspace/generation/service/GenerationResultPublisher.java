@@ -24,18 +24,20 @@ public class GenerationResultPublisher {
     private final ModelAssetMapper assets;
     private final FileStorage storage;
     private final FileStorageProperties limits;
+    private final com.xiye.formaspace.generation.inference.GlbValidator glbValidator;
     private final FileService fileService;
     private final Clock clock;
     private final TransactionTemplate transactions;
 
     public GenerationResultPublisher(GenerationTaskMapper tasks, FileMapper files, ModelAssetMapper assets,
             FileStorage storage, FileStorageProperties limits, FileService fileService, Clock clock,
-            PlatformTransactionManager manager) {
+            PlatformTransactionManager manager, com.xiye.formaspace.generation.inference.GlbValidator glbValidator) {
         this.tasks = tasks;
         this.files = files;
         this.assets = assets;
         this.storage = storage;
         this.limits = limits;
+        this.glbValidator = glbValidator;
         this.fileService = fileService;
         this.clock = clock;
         transactions = new TransactionTemplate(manager);
@@ -46,11 +48,26 @@ public class GenerationResultPublisher {
         try (var input = client.openResult(resultReference)) {
             stored = storage.save(input, "glb", limits.getMaxModelBytes());
         }
+        try (var copy = storage.open(stored.key())) {
+            // Validate outside the DB transaction, using a bounded temporary copy, never a remote filesystem path.
+            var validationFile = java.nio.file.Files.createTempFile("formaspace-glb-validation-", ".glb");
+            try {
+                try (var output=java.nio.file.Files.newOutputStream(validationFile)) { copy.stream().transferTo(output); }
+                try { glbValidator.validate(validationFile, limits.getMaxModelBytes()); }
+                catch (IOException exception) {
+                    throw new com.xiye.formaspace.generation.inference.InferenceClientException(
+                            com.xiye.formaspace.common.exception.ErrorCode.INFERENCE_PROTOCOL_ERROR);
+                }
+            } finally { java.nio.file.Files.deleteIfExists(validationFile); }
+        } catch (IOException | RuntimeException exception) {
+            fileService.cleanup(stored.key());
+            throw exception;
+        }
         var commitAttempted = new java.util.concurrent.atomic.AtomicBoolean();
         try {
             Boolean published = transactions.execute(status -> {
                 var task = tasks.lockTask(taskId);
-                if (task == null || task.getStatus() != GenerationStatus.PROCESSING || !Boolean.TRUE.equals(task.getSimulated())) {
+                if (task == null || task.getStatus() != GenerationStatus.PROCESSING) {
                     return false;
                 }
                 var file = new FileEntity();
@@ -64,13 +81,14 @@ public class GenerationResultPublisher {
                 var asset = new ModelAssetEntity();
                 asset.setUserId(task.getUserId());
                 asset.setGenerationTaskId(taskId);
-                asset.setName("模拟作品 " + taskId);
+                boolean simulated=Boolean.TRUE.equals(task.getSimulated());
+                asset.setName((simulated ? "模拟作品 " : "生成作品 ") + taskId);
                 asset.setModelFileId(file.getId());
                 asset.setFormat("GLB");
                 asset.setSizeBytes(stored.sizeBytes());
-                asset.setSimulated(true);
+                asset.setSimulated(simulated);
                 assets.insert(asset);
-                if (tasks.succeed(taskId, clock.instant()) != 1) { throw new IllegalStateException("Task completion conflict"); }
+                if ((simulated ? tasks.succeed(taskId, clock.instant()) : tasks.succeedReal(taskId, clock.instant())) != 1) { throw new IllegalStateException("Task completion conflict"); }
                 commitAttempted.set(true);
                 return true;
             });

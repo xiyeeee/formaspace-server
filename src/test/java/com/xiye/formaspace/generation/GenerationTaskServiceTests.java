@@ -46,7 +46,7 @@ class GenerationTaskServiceTests {
             when(tasks.findIdempotent(1L, task.getIdempotencyKey())).thenReturn(task);
             return 1;
         }).when(tasks).insert(any(GenerationTaskEntity.class));
-        service = new GenerationTaskService(tasks, users, files, resolver, snapshots, properties, transactions);
+        service = new GenerationTaskService(tasks, users, files, resolver, snapshots, properties, transactions, mock(com.xiye.formaspace.generation.service.GenerationReadiness.class));
     }
 
     @Test

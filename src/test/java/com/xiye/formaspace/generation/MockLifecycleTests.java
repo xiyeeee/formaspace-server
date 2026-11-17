@@ -55,7 +55,7 @@ class MockLifecycleTests {
         when(tasks.processing(eq(1L), any())).thenAnswer(invocation -> {
             task.setStatus(GenerationStatus.PROCESSING); task.setUpdatedAt(invocation.getArgument(1)); return 1;
         });
-        when(client.query(1L)).thenReturn(new ModelInferenceClient.QueryResult(true, null, ErrorCode.MOCK_RESULT_NOT_CONFIGURED));
+        when(client.query("mock:1")).thenReturn(new ModelInferenceClient.QueryResult(true, null, ErrorCode.MOCK_RESULT_NOT_CONFIGURED));
         when(tasks.fail(eq(1L), anyString(), anyString(), any())).thenAnswer(invocation -> {
             task.setStatus(GenerationStatus.FAILED); return 1;
         });
@@ -72,7 +72,7 @@ class MockLifecycleTests {
     void databaseOutageDuringCompletionLeavesTaskRecoverable() throws Exception {
         var task = new GenerationTaskEntity(); task.setId(1L); task.setStatus(GenerationStatus.PROCESSING); task.setUpdatedAt(start);
         when(tasks.activeMock(100)).thenReturn(List.of(task));
-        when(client.query(1L)).thenReturn(new ModelInferenceClient.QueryResult(true, "configured-demo", null));
+        when(client.query("mock:1")).thenReturn(new ModelInferenceClient.QueryResult(true, "configured-demo", null));
         doThrow(new DataAccessResourceFailureException("private SQL")).when(publisher).publish(1L, client, "configured-demo");
         worker(start.plusSeconds(3)).tick();
         verify(tasks, never()).fail(anyLong(), anyString(), anyString(), any());
@@ -91,7 +91,7 @@ class MockLifecycleTests {
         doThrow(new DataAccessResourceFailureException("test SQL")).when(modelFiles).insert(any(FileEntity.class));
         doAnswer(invocation -> { storage.delete(invocation.getArgument(0)); return null; }).when(files).cleanupAfterTransaction(anyString(), eq(false));
         var resultPublisher = new GenerationResultPublisher(tasks, modelFiles, assetMapper, storage, properties,
-                files, Clock.fixed(start, ZoneOffset.UTC), new TestTransactions());
+                files, Clock.fixed(start, ZoneOffset.UTC), new TestTransactions(), new GlbValidator(JsonMapper.builder().build()));
         assertThatThrownBy(() -> resultPublisher.publish(1, client, "configured-demo"))
                 .isInstanceOf(DataAccessResourceFailureException.class);
         verify(tasks, never()).succeed(anyLong(), any());
@@ -109,7 +109,7 @@ class MockLifecycleTests {
         doAnswer(invocation -> { storage.delete(invocation.getArgument(0)); return null; }).when(files).cleanup(anyString());
         var modelFiles = mock(FileMapper.class); var assets = mock(ModelAssetMapper.class);
         var resultPublisher = new GenerationResultPublisher(tasks, modelFiles, assets, storage, properties,
-                files, Clock.fixed(start, ZoneOffset.UTC), new TestTransactions());
+                files, Clock.fixed(start, ZoneOffset.UTC), new TestTransactions(), new GlbValidator(JsonMapper.builder().build()));
         resultPublisher.publish(1, client, "configured-demo");
         verifyNoInteractions(modelFiles, assets);
         verify(tasks, never()).succeed(anyLong(), any());
@@ -123,13 +123,13 @@ class MockLifecycleTests {
         validator.validate(demo, 100000);
         properties.setMockDemoGlb(demo);
         var mock = new MockModelInferenceClient(properties, validator, new FileStorageProperties());
-        assertThat(mock.query(1).resultReference()).isEqualTo("configured-demo");
+        assertThat(mock.query("mock:1").resultReference()).isEqualTo("configured-demo");
         try (var result = mock.openResult("configured-demo")) { assertThat(result.readAllBytes()).isEqualTo(MediaFixtures.glb()); }
         Files.writeString(demo, "not GLB");
         assertThatThrownBy(() -> mock.openResult("configured-demo")).isInstanceOf(IOException.class);
         assertThatThrownBy(() -> new MockModelInferenceClient(properties, validator, new FileStorageProperties())).isInstanceOf(IOException.class);
         properties.setMockDemoGlb(null);
         var noDemo = new MockModelInferenceClient(properties, validator, new FileStorageProperties());
-        assertThat(noDemo.query(1).failure()).isEqualTo(ErrorCode.MOCK_RESULT_NOT_CONFIGURED);
+        assertThat(noDemo.query("mock:1").failure()).isEqualTo(ErrorCode.MOCK_RESULT_NOT_CONFIGURED);
     }
 }

@@ -28,13 +28,13 @@ public interface GenerationTaskMapper extends BaseMapper<GenerationTaskEntity> {
     @Select("SELECT COUNT(*) FROM fs_generation_task WHERE user_id=#{userId} AND status IN ('PENDING','SUBMITTING','PROCESSING')")
     long countActive(@Param("userId") long userId);
 
-    @Select("SELECT * FROM fs_generation_task WHERE simulated=TRUE AND status IN ('SUBMITTING','PROCESSING') ORDER BY created_at,id LIMIT #{limit}")
+    @Select("SELECT * FROM fs_generation_task WHERE simulated=TRUE AND execution_mode='MOCK' AND status IN ('SUBMITTING','PROCESSING') ORDER BY created_at,id LIMIT #{limit}")
     List<GenerationTaskEntity> activeMock(@Param("limit") int limit);
 
-    @Select("SELECT COUNT(*) FROM fs_generation_task WHERE simulated=TRUE AND status IN ('SUBMITTING','PROCESSING')")
+    @Select("SELECT COUNT(*) FROM fs_generation_task WHERE simulated=TRUE AND execution_mode='MOCK' AND status IN ('SUBMITTING','PROCESSING')")
     long countActiveMock();
 
-    @Select("SELECT * FROM fs_generation_task WHERE simulated=TRUE AND status='PENDING' ORDER BY created_at,id LIMIT #{limit}")
+    @Select("SELECT * FROM fs_generation_task WHERE simulated=TRUE AND execution_mode='MOCK' AND status='PENDING' ORDER BY created_at,id LIMIT #{limit}")
     List<GenerationTaskEntity> pendingMock(@Param("limit") int limit);
 
     @Select("SELECT * FROM fs_generation_task WHERE id=#{id} FOR UPDATE")
@@ -42,20 +42,66 @@ public interface GenerationTaskMapper extends BaseMapper<GenerationTaskEntity> {
 
     @Update("""
             UPDATE fs_generation_task SET status='SUBMITTING', started_at=#{now}, updated_at=#{now}
-            WHERE id=#{id} AND simulated=TRUE AND status='PENDING'
+            WHERE id=#{id} AND simulated=TRUE AND execution_mode='MOCK' AND status='PENDING'
             """)
     int claimMock(@Param("id") long id, @Param("now") Instant now);
 
-    @Update("UPDATE fs_generation_task SET status='PROCESSING', updated_at=#{now} WHERE id=#{id} AND simulated=TRUE AND status='SUBMITTING'")
+    @Update("UPDATE fs_generation_task SET status='PROCESSING', updated_at=#{now} WHERE id=#{id} AND simulated=TRUE AND execution_mode='MOCK' AND status='SUBMITTING'")
     int processing(@Param("id") long id, @Param("now") Instant now);
 
-    @Update("UPDATE fs_generation_task SET status='SUCCEEDED', finished_at=#{now}, updated_at=#{now} WHERE id=#{id} AND simulated=TRUE AND status='PROCESSING'")
+    @Update("UPDATE fs_generation_task SET status='SUCCEEDED', finished_at=#{now}, updated_at=#{now} WHERE id=#{id} AND simulated=TRUE AND execution_mode='MOCK' AND status='PROCESSING'")
     int succeed(@Param("id") long id, @Param("now") Instant now);
 
     @Update("""
             UPDATE fs_generation_task SET status='FAILED', error_code=#{code}, error_message=#{message},
               finished_at=#{now}, updated_at=#{now}
-            WHERE id=#{id} AND simulated=TRUE AND status IN ('PENDING','SUBMITTING','PROCESSING')
+            WHERE id=#{id} AND simulated=TRUE AND execution_mode='MOCK' AND status IN ('PENDING','SUBMITTING','PROCESSING')
             """)
     int fail(@Param("id") long id, @Param("code") String code, @Param("message") String message, @Param("now") Instant now);
+
+    @Select("SELECT * FROM fs_generation_task WHERE execution_mode='HUNYUAN_LOCAL' AND simulated=FALSE AND status IN ('SUBMITTING','PROCESSING') ORDER BY created_at,id LIMIT 1")
+    List<GenerationTaskEntity> activeReal();
+
+    @Select("SELECT * FROM fs_generation_task WHERE execution_mode='HUNYUAN_LOCAL' AND simulated=FALSE AND status='PENDING' ORDER BY created_at,id LIMIT 1")
+    List<GenerationTaskEntity> pendingReal();
+
+    @Update("""
+            UPDATE fs_generation_task SET status='SUBMITTING',started_at=#{now},updated_at=#{now},deadline_at=#{deadline},inference_stage='SUBMITTING'
+            WHERE id=#{id} AND execution_mode='HUNYUAN_LOCAL' AND simulated=FALSE AND status='PENDING'
+              AND NOT EXISTS (SELECT 1 FROM (SELECT id FROM fs_generation_task WHERE execution_mode='HUNYUAN_LOCAL'
+                AND status IN ('SUBMITTING','PROCESSING') LIMIT 1) AS active_task)
+            """)
+    int claimReal(@Param("id") long id,@Param("now") Instant now,@Param("deadline") Instant deadline);
+
+    @Update("""
+            UPDATE fs_generation_task SET status='PROCESSING',remote_reference=#{reference},provider_task_id=#{eventId},
+              inference_stage='GENERATING',updated_at=#{now},next_poll_at=#{now}
+            WHERE id=#{id} AND execution_mode='HUNYUAN_LOCAL' AND simulated=FALSE AND status='SUBMITTING'
+            """)
+    int submittedReal(@Param("id") long id,@Param("reference") String reference,@Param("eventId") String eventId,@Param("now") Instant now);
+
+    @Update("""
+            UPDATE fs_generation_task SET remote_result_reference=#{reference},inference_stage='RESULT_READY',
+              query_failures=0,next_poll_at=#{now},updated_at=#{now}
+            WHERE id=#{id} AND execution_mode='HUNYUAN_LOCAL' AND simulated=FALSE AND status='PROCESSING'
+            """)
+    int resultReadyReal(@Param("id") long id,@Param("reference") String reference,@Param("now") Instant now);
+
+    @Update("""
+            UPDATE fs_generation_task SET query_failures=query_failures+1,next_poll_at=#{next},updated_at=#{now}
+            WHERE id=#{id} AND execution_mode='HUNYUAN_LOCAL' AND simulated=FALSE AND status='PROCESSING'
+            """)
+    int retryReal(@Param("id") long id,@Param("next") Instant next,@Param("now") Instant now);
+
+    @Update("""
+            UPDATE fs_generation_task SET status='SUCCEEDED',finished_at=#{now},updated_at=#{now},inference_stage='COMPLETED'
+            WHERE id=#{id} AND execution_mode='HUNYUAN_LOCAL' AND simulated=FALSE AND status='PROCESSING' AND deadline_at > #{now}
+            """)
+    int succeedReal(@Param("id") long id,@Param("now") Instant now);
+
+    @Update("""
+            UPDATE fs_generation_task SET status='FAILED',error_code=#{code},error_message=#{message},finished_at=#{now},updated_at=#{now}
+            WHERE id=#{id} AND execution_mode='HUNYUAN_LOCAL' AND simulated=FALSE AND status IN ('PENDING','SUBMITTING','PROCESSING')
+            """)
+    int failReal(@Param("id") long id,@Param("code") String code,@Param("message") String message,@Param("now") Instant now);
 }

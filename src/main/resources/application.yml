@@ -76,6 +76,24 @@ formaspace:
     mock-stage-delay: ${MOCK_STAGE_DELAY:2s}
     mock-poll-delay-ms: ${MOCK_POLL_DELAY_MS:1000}
     mock-demo-glb: ${MOCK_DEMO_GLB:}
+    hunyuan-local:
+      base-url: ${HUNYUAN_BASE_URL:http://127.0.0.1:7860}
+      api-name: ${HUNYUAN_API_NAME:shape_generation}
+      api-prefix: /gradio_api
+      connect-timeout: ${HUNYUAN_CONNECT_TIMEOUT:5s}
+      read-timeout: ${HUNYUAN_READ_TIMEOUT:60s}
+      task-timeout: ${HUNYUAN_TASK_TIMEOUT:30m}
+      retry-interval: ${HUNYUAN_RETRY_INTERVAL:5s}
+      maximum-retries: ${HUNYUAN_MAXIMUM_RETRIES:3}
+      model-id: ${HUNYUAN_MODEL_ID:tencent/Hunyuan3D-2mini}
+      subfolder: ${HUNYUAN_SUBFOLDER:hunyuan3d-dit-v2-mini}
+      profile-id: ${HUNYUAN_PROFILE_ID:hunyuan-mini-mps-candidate-v1}
+      authorization: ${HUNYUAN_AUTHORIZATION:}
+      num-chunks: ${HUNYUAN_NUM_CHUNKS:1000}
+      standard-preset:
+        inference-steps: ${HUNYUAN_INFERENCE_STEPS:5}
+        guidance-scale: ${HUNYUAN_GUIDANCE_SCALE:5}
+        octree-resolution: ${HUNYUAN_OCTREE_RESOLUTION:128}
     profile-id: mock-v1
     minimum-steps: 1
     maximum-steps: 20

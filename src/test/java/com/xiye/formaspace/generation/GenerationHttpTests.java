@@ -120,7 +120,7 @@ class GenerationHttpTests {
     @Test
     void capabilitiesHaveHonestModeAndPresetMarkers() throws Exception {
         var properties = new GenerationProperties(); properties.setMode(GenerationMode.MOCK);
-        when(capabilities.capabilities()).thenReturn(new GenerationCapabilitiesService(properties, new FileStorageProperties()).capabilities());
+        when(capabilities.capabilities()).thenReturn(new GenerationCapabilitiesService(properties, new FileStorageProperties(), org.mockito.Mockito.mock(com.xiye.formaspace.generation.service.GenerationReadiness.class)).capabilities());
         mvc.perform(get("/api/generation/capabilities").with(authentication(identity())))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.mode").value("MOCK"))
                 .andExpect(jsonPath("$.data.simulated").value(true)).andExpect(jsonPath("$.data.modelId").isEmpty())

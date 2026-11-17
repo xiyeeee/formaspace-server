@@ -13,7 +13,7 @@ public class GenerationParameterResolver {
 
     public GenerationParameterResolver(GenerationProperties profile) {
         this.profile = profile;
-        profile.getQualityPresets().values().forEach(preset -> validateCombination(
+        profile.activeProfile().presets().values().forEach(preset -> validateCombination(
                 preset.inferenceSteps(), preset.guidanceScale(), preset.octreeResolution()));
     }
 
@@ -28,7 +28,7 @@ public class GenerationParameterResolver {
 
     public ResolvedGenerationParameters resolve(RequestedGenerationParameters requested) {
         if (requested.generateTexture()) { throw new BusinessException(ErrorCode.UNSUPPORTED_CAPABILITY); }
-        var preset = profile.getQualityPresets().get(requested.quality());
+        var preset = profile.activeProfile().presets().get(requested.quality());
         if (preset == null) { throw new BusinessException(ErrorCode.UNSUPPORTED_CAPABILITY); }
         var advanced = requested.advancedOptions();
         int steps = advanced.inferenceSteps() == null ? preset.inferenceSteps() : advanced.inferenceSteps();
@@ -36,20 +36,20 @@ public class GenerationParameterResolver {
         int octree = advanced.octreeResolution() == null ? preset.octreeResolution() : advanced.octreeResolution();
         validateCombination(steps, guidance, octree);
         Long specifiedSeed = advanced.seed();
-        if (specifiedSeed != null && (specifiedSeed < 0 || specifiedSeed > Integer.MAX_VALUE)) {
+        if (specifiedSeed != null && (specifiedSeed < 0 || specifiedSeed > profile.activeProfile().maximumSeed())) {
             throw new BusinessException(ErrorCode.INVALID_GENERATION_PARAMETERS);
         }
-        long seed = specifiedSeed == null ? random.nextLong(2147483648L) : specifiedSeed;
-        return new ResolvedGenerationParameters(1, profile.getProfileId(), requested.quality(), false,
-                advanced.removeBackground(), seed, steps, guidance, octree, profile.getNumChunks(), "GLB");
+        long seed = specifiedSeed == null ? random.nextLong(profile.activeProfile().maximumSeed() + 1) : specifiedSeed;
+        return new ResolvedGenerationParameters(1, profile.activeProfile().id(), requested.quality(), false,
+                advanced.removeBackground(), seed, steps, guidance, octree, profile.activeProfile().numChunks(), "GLB");
     }
 
     private void validateCombination(int steps, double guidance, int octree) {
         // This joint product resource budget is independent of official UI slider ranges.
         double voxelSteps = (double) steps * octree * octree * octree;
-        if (steps < profile.getMinimumSteps() || steps > profile.getMaximumSteps() || !Double.isFinite(guidance)
-                || guidance < profile.getMinimumGuidance() || guidance > profile.getMaximumGuidance()
-                || !profile.getOctreeResolutions().contains(octree) || voxelSteps > profile.getMaximumVoxelSteps()) {
+        if (steps < profile.activeProfile().minimumSteps() || steps > profile.activeProfile().maximumSteps() || !Double.isFinite(guidance)
+                || guidance < profile.activeProfile().minimumGuidance() || guidance > profile.activeProfile().maximumGuidance()
+                || !profile.activeProfile().octreeResolutions().contains(octree) || voxelSteps > profile.activeProfile().maximumVoxelSteps()) {
             throw new BusinessException(ErrorCode.INVALID_GENERATION_PARAMETERS);
         }
     }

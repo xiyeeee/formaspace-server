@@ -16,6 +16,13 @@ public class GenerationTaskEntity {
     private Long sourceFileId;
     private String provider;
     private String providerTaskId;
+    private String executionMode;
+    private String remoteReference;
+    private String remoteResultReference;
+    private String inferenceStage;
+    private Integer queryFailures;
+    private Instant nextPollAt;
+    private Instant deadlineAt;
     private String idempotencyKey;
     private String requestHash;
     private String requestedParameters;

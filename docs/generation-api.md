@@ -1,6 +1,6 @@
 # 图片、参数与生成任务 API
 
-本轮实现受保护的上传→参数→创建任务→查询→只读结果链路。**真实腾讯模型没有接入，没有部署 Python/模型，也没有 M5 16GB 实测结论。** 仅有 DISABLED / MOCK 两种模式；不修改前端。
+本轮实现受保护的上传→参数→创建任务→查询→只读结果链路。已增加 **HUNYUAN_LOCAL** 对接本地 Gradio，保留 DISABLED / MOCK；没有 M5 16GB 生成质量/性能实测结论。本地模型当时仍在下载且 7860 未监听，不能声称真实生成验证完成。真实模式说明见 [hunyuan-local-integration.md](hunyuan-local-integration.md)，下文原 mock 示例保留。
 
 所有接口使用现有 JWT：`Authorization: Bearer <accessToken>`，不接收客户端 userId 决定归属。JSON 统一 ApiResponse，ID 字符串，时间 UTC ISO-8601 Z。文件流接口直接返回二进制，出错且尚未发送响应时返回统一 JSON。
 
@@ -245,3 +245,15 @@ curl -o model.glb http://127.0.0.1:8080/api/assets/<assetId>/download -H 'Author
 ```
 
 配置清单与验证结果见 README、.env.example、[generation-checks.md](generation-checks.md)。下一阶段另行选择 mini 模型并在目标 Mac 实测参数/性能、部署 Python HTTP 服务后再接入真实客户端；mock 成功不代表那一步已完成。
+
+## HUNYUAN_LOCAL 扩展
+
+接口路径、JWT、归属、ID、分页和幂等规则不变。capabilities 在真实模式返回 mode=HUNYUAN_LOCAL、simulated=false、modelId=tencent/Hunyuan3D-2mini、profileId=hunyuan-mini-mps-candidate-v1，simulationNotice=null；generationAvailable 取轻量模型服务元数据 readiness。未就绪拒绝新任务 503，已存在 key 的重放仍返回旧任务，不重新解析/随机。
+
+真实 profile 只开放 STANDARD：默认 steps=5、guidance=5、octree=128、numChunks=1000；seed 0～10000000，去背景可 true/false，texture=true/HIGH 拒绝。steps/guidance/octree 的有效范围与唯一 preset 相同，属于未实测的低资源候选，不是模型最佳配置。管理员可按已验证部署配置更新 preset 与 profile-id；前端以实时 capabilities 为准。
+
+新真实任务与作品 simulated=false。providerTaskId/远程引用/阶段/重试字段只供内部调度，不进入 VO。progress 仍为 null，前端只轮询；状态和结果访问路径不变。下载的是实际模型服务生成并经过 GLB 校验的文件，不是 mock 演示文件。
+
+新增公开错误码：INFERENCE_FAILED、INFERENCE_PROTOCOL_ERROR、INFERENCE_REFERENCE_LOST、INFERENCE_TIMEOUT、SUBMISSION_UNCERTAIN。任务失败时存入 errorCode/errorMessage，查询本身仍为 200；创建时服务不可用为 503 INFERENCE_UNAVAILABLE。查询网络错误有界退避，提交结果不明不自动重提。
+
+部署、恢复窗口、完整协议与当前未验证项见 [hunyuan-local-integration.md](hunyuan-local-integration.md)。

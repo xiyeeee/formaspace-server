@@ -30,7 +30,7 @@ class GenerationConfigurationTests {
         context.withPropertyValues("spring.profiles.active=local", "formaspace.generation.mode=MOCK",
                 "formaspace.generation.mock-demo-glb=").run(application -> {
             assertThat(application).hasNotFailed().hasSingleBean(MockModelInferenceClient.class);
-            assertThat(application.getBean(MockModelInferenceClient.class).query(1).failure().name())
+            assertThat(application.getBean(MockModelInferenceClient.class).query("mock:1").failure().name())
                     .isEqualTo("MOCK_RESULT_NOT_CONFIGURED");
         });
     }
@@ -49,7 +49,7 @@ class GenerationConfigurationTests {
         int end = document.indexOf("\n```", start);
         var json = JsonMapper.builder().build();
         var properties = new GenerationProperties(); properties.setMode(GenerationMode.MOCK);
-        var capabilities = new GenerationCapabilitiesService(properties, new FileStorageProperties()).capabilities();
+        var capabilities = new GenerationCapabilitiesService(properties, new FileStorageProperties(), org.mockito.Mockito.mock(com.xiye.formaspace.generation.service.GenerationReadiness.class)).capabilities();
         assertThat(json.readTree(json.writeValueAsString(ApiResponse.success(capabilities))))
                 .isEqualTo(json.readTree(document.substring(start,end)));
     }

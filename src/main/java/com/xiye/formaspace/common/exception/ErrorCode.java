@@ -28,6 +28,11 @@ public enum ErrorCode {
     IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "该幂等键已用于不同请求"),
     GENERATION_LIMIT_REACHED(HttpStatus.TOO_MANY_REQUESTS, "未结束任务已达上限，请稍后重试"),
     MOCK_RESULT_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "未配置演示模型，模拟任务无法完成"),
+    INFERENCE_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "模型生成失败，请检查图片或稍后重试"),
+    INFERENCE_PROTOCOL_ERROR(HttpStatus.SERVICE_UNAVAILABLE, "模型服务返回了无效结果"),
+    INFERENCE_REFERENCE_LOST(HttpStatus.SERVICE_UNAVAILABLE, "模型服务已重启或任务引用失效，请核对后重新生成"),
+    INFERENCE_TIMEOUT(HttpStatus.SERVICE_UNAVAILABLE, "模型生成超时，请核对模型服务后重试"),
+    SUBMISSION_UNCERTAIN(HttpStatus.SERVICE_UNAVAILABLE, "模型提交结果不确定，请先核对模型服务，避免重复生成"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "服务暂时不可用，请稍后重试");
 
     private final HttpStatus httpStatus;

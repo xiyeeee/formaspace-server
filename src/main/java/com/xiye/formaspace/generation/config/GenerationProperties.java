@@ -47,6 +47,24 @@ public class GenerationProperties {
             GenerationQuality.STANDARD, new Preset(5, 5.0, 128),
             GenerationQuality.HIGH, new Preset(10, 5.0, 256)));
 
+    @Valid @NotNull
+    private HunyuanLocalProperties hunyuanLocal = new HunyuanLocalProperties();
+
+    public com.xiye.formaspace.generation.parameter.GenerationProfile activeProfile() {
+        if (mode == GenerationMode.HUNYUAN_LOCAL) {
+            // A deliberately restricted candidate, not a claim of verified MPS quality/performance.
+            var preset = hunyuanLocal.getStandardPreset();
+            return new com.xiye.formaspace.generation.parameter.GenerationProfile(hunyuanLocal.getProfileId(),
+                    hunyuanLocal.getModelId(), false, 10_000_000L, preset.inferenceSteps(), preset.inferenceSteps(),
+                    preset.guidanceScale(), preset.guidanceScale(), List.of(preset.octreeResolution()),
+                    (long) preset.inferenceSteps()*preset.octreeResolution()*preset.octreeResolution()*preset.octreeResolution(),
+                    hunyuanLocal.getNumChunks(), Map.of(GenerationQuality.STANDARD, preset));
+        }
+        return new com.xiye.formaspace.generation.parameter.GenerationProfile(profileId, null, true,
+                Integer.MAX_VALUE, minimumSteps, maximumSteps, minimumGuidance, maximumGuidance,
+                List.copyOf(octreeResolutions), maximumVoxelSteps, numChunks, Map.copyOf(qualityPresets));
+    }
+
     public record Preset(@Min(1) int inferenceSteps, @DecimalMin("0.0") double guidanceScale,
             @Min(1) int octreeResolution) {}
 }

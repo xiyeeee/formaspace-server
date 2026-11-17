@@ -25,15 +25,16 @@ public class MockModelInferenceClient implements ModelInferenceClient {
     }
 
     @Override
-    public void submit(Submission submission) throws IOException {
+    public SubmissionResult submit(Submission submission) throws IOException {
         // Validate the controlled input is readable; no inference, background removal or texturing is performed.
         try (var input = submission.sourceImage().content().getInputStream()) {
             if (input.read() == -1) { throw new IOException("Source image unavailable"); }
         }
+        return new SubmissionResult("mock:" + submission.internalTaskId());
     }
 
     @Override
-    public QueryResult query(long internalTaskId) {
+    public QueryResult query(String remoteReference) {
         return demo == null ? new QueryResult(true, null, ErrorCode.MOCK_RESULT_NOT_CONFIGURED)
                 : new QueryResult(true, "configured-demo", null);
     }
