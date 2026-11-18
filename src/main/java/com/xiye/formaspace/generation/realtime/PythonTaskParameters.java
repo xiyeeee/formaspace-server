@@ -23,16 +23,23 @@ public record PythonTaskParameters(long seed, int steps, double guidanceScale, i
         List<PreviewStage> stages = null;
         if (config.isPreviewEnabled() && config.isMultiStagePreview()) {
             stages = new ArrayList<>();
-            double[] fractions = {0.4, 0.6, 0.8};
-            int[] resolutions = {64, 96, 128};
-            int[] counts = {1000, 2500, 5000};
+            if (!config.isPreviewStageCountSupported()) throw new IllegalArgumentException("previewStageCount 仅支持 3 或 6");
+            boolean sixStages = config.getPreviewStageCount() == 6;
+            double[] fractions = sixStages ? new double[] {0.4, 0.5, 0.6, 0.7, 0.8, 0.9} : new double[] {0.4, 0.6, 0.8};
+            int[] resolutions = sixStages ? new int[] {64, 64, 96, 96, 128, 128} : new int[] {64, 96, 128};
+            int[] counts = sixStages ? new int[] {1000, 1500, 2500, 3500, 4500, 5000} : new int[] {1000, 2500, 5000};
             int previousStep = 0;
             for (int index = 0; index < fractions.length; index++) {
                 int step = Math.max(1, Math.min(parameters.inferenceSteps() - 1,
                         (int) Math.floor(parameters.inferenceSteps() * fractions[index])));
-                if (step <= previousStep) continue;
-                stages.add(new PreviewStage(step, Math.min(resolutions[index], config.getPreviewResolution()),
-                        Math.min(counts[index], config.getPointCount())));
+                PreviewStage stage=new PreviewStage(step, Math.min(resolutions[index], config.getPreviewResolution()),
+                        Math.min(counts[index], config.getPointCount()));
+                if (step == previousStep) {
+                    // Short tasks share candidate steps; retain the highest budget for that step.
+                    stages.set(stages.size()-1,stage);
+                    continue;
+                }
+                stages.add(stage);
                 previousStep = step;
             }
         }

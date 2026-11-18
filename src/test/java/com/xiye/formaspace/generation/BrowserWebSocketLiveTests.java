@@ -32,7 +32,7 @@ import tools.jackson.databind.*;
 
 import static org.assertj.core.api.Assertions.*;
 
-@SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties={"formaspace.generation.mode=PYTHON_REALTIME","formaspace.email-code.enabled=false","formaspace.cors.allowed-origins=http://localhost:5173"})
+@SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties={"formaspace.generation.mode=PYTHON_REALTIME","formaspace.generation.python-realtime.preview-stage-count=6","formaspace.email-code.enabled=false","formaspace.cors.allowed-origins=http://localhost:5173"})
 @ActiveProfiles("test")
 @DirtiesContext
 @EnabledIfEnvironmentVariable(named="BROWSER_LIVE_IMAGE",matches=".+")
@@ -95,8 +95,8 @@ class BrowserWebSocketLiveTests {
                 if(type.equals("result_saving"))assertThat(mapper.selectById(id).getStatus()).isEqualTo(GenerationStatus.PROCESSING);
                 if(type.equals("preview_ready")){
                     int version=frame.path("previewVersion").asInt();versions.add(version);
-                    int expectedPoints=List.of(1000,2500,5000).get(version-1);
-                    int expectedStep=List.of(12,18,24).get(version-1);
+                    int expectedPoints=List.of(1000,1500,2500,3500,4500,5000).get(version-1);
+                    int expectedStep=List.of(12,15,18,21,24,27).get(version-1);
                     cloud=frame.path("payload");assertThat(cloud.path("positions").size()).isEqualTo(expectedPoints);
                     assertThat(cloud.path("sourceStep").asInt()).isEqualTo(expectedStep);
                     JsonNode announcement;do{announcement=batchInbox.next();}while(!announcement.path("type").asString().equals("preview_ready"));
@@ -121,20 +121,20 @@ class BrowserWebSocketLiveTests {
                 }
                 if(type.equals("task_completed")){completed=frame;break;}
             }
-            assertThat(versions).containsExactlyInAnyOrder(1,2,3);
+            assertThat(versions).containsExactlyInAnyOrder(1,2,3,4,5,6);
             assertThat(completed).isNotNull();assertThat(reconnected).isTrue();assertThat(types).contains("sampling_step","preview_ready","result_saving","task_completed");
             assertThat(completed.path("payload").path("status").asString()).isEqualTo("SUCCEEDED");String assetId=completed.path("payload").path("assetId").asString();
             assertThat(tasks.detail(id,owner.getId()).assetId()).isEqualTo(assetId);
             HttpResponse<byte[]> model=http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/assets/"+assetId+"/model")).header("Authorization","Bearer "+token).build(),HttpResponse.BodyHandlers.ofByteArray());
             assertThat(model.statusCode()).isEqualTo(200);assertThat(model.body().length).isGreaterThan(1000);
             assertThat(java.nio.ByteBuffer.wrap(model.body()).order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt()).isEqualTo(0x46546c67);
-            for(int version=1;version<=3;version++) {
+            for(int version=1;version<=6;version++) {
                 GenerationPreviewService.PreviewVO retained=previews.read(id,version,owner.getId());
-                assertThat(retained.pointCount()).isEqualTo(List.of(1000,2500,5000).get(version-1));
-                assertThat(retained.sourceStep()).isEqualTo(List.of(12,18,24).get(version-1));
+                assertThat(retained.pointCount()).isEqualTo(List.of(1000,1500,2500,3500,4500,5000).get(version-1));
+                assertThat(retained.sourceStep()).isEqualTo(List.of(12,15,18,21,24,27).get(version-1));
             }
             subscribe(socket,id);assertThat(inbox.next().path("payload").path("status").asString()).isEqualTo("SUCCEEDED");
-            System.out.println("REAL_BROWSER_WS_SUCCESS task="+id+" asset="+assetId+" modelBytes="+model.body().length+" versions=3 stages=12/18/24 points=1000/2500/5000 batchSize=50 reconnect=true stages="+stages+" types="+types);
+            System.out.println("REAL_BROWSER_WS_SUCCESS task="+id+" asset="+assetId+" modelBytes="+model.body().length+" versions=6 stages=12/15/18/21/24/27 points=1000/1500/2500/3500/4500/5000 batchSize=50 reconnect=true stages="+stages+" types="+types);
         }finally{socket.abort();if(batchSocket!=null)batchSocket.abort();}
     }
     private final class Inbox implements WebSocket.Listener{

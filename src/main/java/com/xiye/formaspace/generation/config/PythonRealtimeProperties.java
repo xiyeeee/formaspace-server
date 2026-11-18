@@ -31,8 +31,13 @@ public class PythonRealtimeProperties {
     @Min(1000) @Max(8000) private int numChunks = 4000;
     private boolean previewEnabled = true;
     private boolean multiStagePreview = true;
+    private int previewStageCount = 3;
     @Min(1) @Max(49) private int previewStep = 24;
     @Min(64) @Max(128) private int previewResolution = 128;
     @Min(1) @Max(5000) private int pointCount = 5000;
+    @AssertTrue(message="previewStageCount 仅支持 3 或 6")
+    public boolean isPreviewStageCountSupported() {
+        return previewStageCount == 3 || previewStageCount == 6;
+    }
     @NotBlank private String modelId = "tencent/Hunyuan3D-2mini";
 }
