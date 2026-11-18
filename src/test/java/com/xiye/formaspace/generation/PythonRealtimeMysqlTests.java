@@ -73,7 +73,7 @@ class PythonRealtimeMysqlTests {
     @Autowired private ApplicationContext context;
 
     @BeforeEach void clearDisposableDatabase() {
-        for(var table:List.of("fs_generation_preview","fs_model_asset","fs_generation_task","fs_file","fs_user","fs_email_verification","fs_auth_rate_limit"))
+        for(String table:List.of("fs_generation_browser_dedup","fs_generation_browser_state","fs_generation_preview","fs_model_asset","fs_generation_task","fs_file","fs_user","fs_email_verification","fs_auth_rate_limit"))
             jdbc.update("DELETE FROM "+table);
     }
 

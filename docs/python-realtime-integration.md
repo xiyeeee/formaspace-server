@@ -2,7 +2,7 @@
 
 ## 范围和实际协议来源
 
-新增独立 `INFERENCE_MODE=PYTHON_REALTIME`，Java 是 HTTP/原生 WebSocket 客户端。DISABLED、MOCK、HUNYUAN_LOCAL 保留原有语义；HUNYUAN_LOCAL 仍是 Gradio HTTP/SSE，工作器按 execution_mode 隔离。没有修改 Python、前端，没有增加浏览器 WebSocket 服务端。
+新增独立 `INFERENCE_MODE=PYTHON_REALTIME`，Java 是 HTTP/原生 WebSocket 客户端。DISABLED、MOCK、HUNYUAN_LOCAL 保留原有语义；HUNYUAN_LOCAL 仍是 Gradio HTTP/SSE，工作器按 execution_mode 隔离。没有修改 Python、前端。后续新增的浏览器 WebSocket 服务端及接入契约见 [frontend-realtime-api.md](frontend-realtime-api.md)。
 
 起初相邻 Python 仓库只有 `skills/1.0.2.md` 需求文档，8001 尚未监听；执行期间 Python 已交付 `31a2637`，新增 `docs/inference-service-v1.md`、`inference_service/` 和 `scripts/inference_server.py`。本轮已重新核对实际源码、readyz 与运行协议，并按该实现同步参数范围。既有 Gradio 的 7860 不是本协议服务，不能改个地址直接复用。
 
@@ -103,7 +103,7 @@ WS preview_ready 中的 positions 直接校验并保存，不重复下载。同�
 
 示例省略其余坐标。没有 inferenceTaskId、服务令牌、Python 地址或磁盘路径。任务详情/历史新增 stage、completedSteps、totalSteps、latestPreview、connectionState；latestPreview 仅指向 Java 已保存版本，包含 version/sourceStep/pointCount/positionsPath。
 
-内部 GenerationEventPublisher 发布业务 taskId、事件类型与 sequence，预留后续浏览器转发；当前不建立浏览器 WS，也不转发完整点云日志。
+内部 GenerationEventPublisher 发布业务 taskId、事件类型与 Python sequence；浏览器适配层持久化独立 Java sequence，并通过 `/ws/generation` 转发事件与完整预览点云。日志不输出点云数组。
 
 ## 最终发布和恢复
 

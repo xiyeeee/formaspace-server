@@ -7,6 +7,9 @@ import lombok.Setter;
 
 @Mapper
 public interface GenerationPreviewMapper {
+    @Update("UPDATE fs_generation_preview SET decode_seconds=#{seconds} WHERE task_id=#{id} AND version=#{version}")
+    int setDecodeSeconds(@Param("id")long id,@Param("version")int version,@Param("seconds")double seconds);
+
     @Select("SELECT * FROM fs_generation_preview WHERE task_id=#{taskId} AND version=#{version}")
     PreviewFile find(@Param("taskId") long taskId,@Param("version") int version);
     @Insert("INSERT IGNORE INTO fs_generation_preview(task_id,version,source_step,point_count,storage_key,created_at) VALUES(#{taskId},#{version},#{sourceStep},#{pointCount},#{storageKey},#{createdAt})")
@@ -25,5 +28,6 @@ public interface GenerationPreviewMapper {
         private Integer pointCount;
         private String storageKey;
         private Instant createdAt;
+        private Double decodeSeconds;
     }
 }

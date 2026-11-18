@@ -200,6 +200,8 @@ public class PythonRealtimeWorker {
                 PythonRealtimeProtocol.require(parameters.previewEnabled() && cloud.sourceStep()==parameters.previewStep() && cloud.sourceStep()<=state.completedSteps()
                         && cloud.pointCount()==parameters.pointCount());
                 previews.save(task.getId(),cloud);task.setStoredPreviewVersion(cloud.previewVersion());
+                if(event!=null && event.type().equals("preview_ready") && event.payload().path("decodeSeconds").isNumber())
+                    previews.recordDecodeSeconds(task.getId(),cloud.previewVersion(),event.payload().path("decodeSeconds").asDouble());
             } catch (IOException | RuntimeException exception) {
                 log.warn("Python preview save deferred: taskId={}, version={}, type={}",task.getId(),state.previewVersion(),exception.getClass().getSimpleName());
             }
@@ -208,10 +210,17 @@ public class PythonRealtimeWorker {
             String code=state.error().path("code").asString();
             fail(task,code.equals("SERVICE_RESTARTED") ? ErrorCode.SERVICE_RESTARTED : ErrorCode.INFERENCE_FAILED);return;
         }
-        if (state.status().equals("completed")) { publish(task);return; }
-        if (event!=null) events.publish(task.getId(),event.type(),state.sequence());
+        if (state.status().equals("completed")) {
+            events.publish(task.getId(),"result_saving",state.sequence());
+            publish(task);return;
+        }
+        if (event!=null) {
+            if(event.type().equals("preview_failed"))events.publish(task.getId(),event.type(),state.sequence(),event.payload().path("fatal").asBoolean());
+            else events.publish(task.getId(),event.type(),state.sequence());
+        } else events.publish(task.getId(),"task_snapshot",state.sequence());
     }
     private void publish(GenerationTaskEntity task) {
+        events.publish(task.getId(),"result_saving",task.getLastPythonSequence());
         try {
             results.publish(task.getId(),client,task.getInferenceTaskId());
             var saved=tasks.selectById(task.getId());
@@ -253,7 +262,12 @@ public class PythonRealtimeWorker {
         save(task);
         log.warn("Python connection reconciliation scheduled: taskId={}, attempt={}, delayMs={}",task.getId(),failures+1,delay);
     }
-    private boolean save(GenerationTaskEntity task) { task.setUpdatedAt(clock.instant());return tasks.saveRealtime(task)==1; }
+    private boolean save(GenerationTaskEntity task) {
+        task.setUpdatedAt(clock.instant());
+        boolean saved=tasks.saveRealtime(task)==1;
+        if(saved)events.publish(task.getId(),"connection_status",task.getLastPythonSequence());
+        return saved;
+    }
     private boolean terminal(GenerationTaskEntity task) { return task==null || task.getStatus()==GenerationStatus.SUCCEEDED || task.getStatus()==GenerationStatus.FAILED; }
     private void fail(GenerationTaskEntity task,ErrorCode code) {
         if (tasks.failRealtime(task.getId(),code.name(),code.getMessage(),clock.instant())==1) events.publish(task.getId(),"task_failed",task.getLastPythonSequence());

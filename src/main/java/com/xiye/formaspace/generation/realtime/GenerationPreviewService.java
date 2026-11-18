@@ -47,6 +47,13 @@ public class GenerationPreviewService {
             throw exception;
         }
     }
+    public Double decodeSeconds(long id,int version) {
+        GenerationPreviewMapper.PreviewFile file=previews.find(id,version);
+        return file==null?null:file.getDecodeSeconds();
+    }
+    public void recordDecodeSeconds(long id,int version,double seconds) {
+        if(Double.isFinite(seconds) && seconds>=0)previews.setDecodeSeconds(id,version,seconds);
+    }
     public PreviewMetadata latest(long taskId,Integer version) {
         if (version==null || version<1) return null;
         var file=previews.find(taskId,version);
