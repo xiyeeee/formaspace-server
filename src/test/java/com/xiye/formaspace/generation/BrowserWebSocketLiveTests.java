@@ -75,13 +75,18 @@ class BrowserWebSocketLiveTests {
         com.xiye.formaspace.generation.dto.AdvancedGenerationOptionsDTO advanced=new com.xiye.formaspace.generation.dto.AdvancedGenerationOptionsDTO();advanced.setSeed(1234L);request.setAdvancedOptions(advanced);
         long id=Long.parseLong(tasks.create(owner.getId(),UUID.randomUUID().toString(),request).task().id());
         Inbox inbox=new Inbox();WebSocket socket=connect(ticket(token),"http://localhost:5173",inbox);
+        Inbox batchInbox=new Inbox();WebSocket batchSocket=null;
         Set<String> types=new HashSet<>(),stages=new HashSet<>();JsonNode cloud=null,completed=null;boolean reconnected=false;long lastSequence=0,lastPing=0;
         long end=System.nanoTime()+Duration.ofMinutes(4).toNanos();
         try{
             subscribe(socket,id);JsonNode first=inbox.next();assertThat(first.path("type").asString()).isEqualTo("task_snapshot");lastSequence=first.path("sequence").asLong();
+            batchSocket=connect(ticket(token),"http://localhost:5173",batchInbox);
+            batchSocket.sendText("{\"protocolVersion\":1,\"type\":\"subscribe\",\"taskId\":\""+id+"\",\"pointBatches\":true}",true).join();
+            assertThat(batchInbox.next().path("type").asString()).isEqualTo("task_snapshot");
             while(System.nanoTime()<end){
                 if(System.nanoTime()-lastPing>Duration.ofSeconds(10).toNanos()){
                     socket.sendText("{\"protocolVersion\":1,\"type\":\"ping\",\"requestId\":\"live\"}",true).join();lastPing=System.nanoTime();
+                    batchSocket.sendText("{\"protocolVersion\":1,\"type\":\"ping\",\"requestId\":\"batch-live\"}",true).join();
                 }
                 JsonNode frame=inbox.messages.poll(20,TimeUnit.SECONDS);if(frame==null)continue;
                 String type=frame.path("type").asString();types.add(type);if(frame.has("stage"))stages.add(frame.path("stage").asString());
@@ -90,6 +95,18 @@ class BrowserWebSocketLiveTests {
                 if(type.equals("result_saving"))assertThat(mapper.selectById(id).getStatus()).isEqualTo(GenerationStatus.PROCESSING);
                 if(type.equals("preview_ready") && !reconnected){
                     cloud=frame.path("payload");assertThat(cloud.path("positions").size()).isEqualTo(5000);assertThat(cloud.path("sourceStep").asInt()).isEqualTo(24);
+                    JsonNode announcement;do{announcement=batchInbox.next();}while(!announcement.path("type").asString().equals("preview_ready"));
+                    assertThat(announcement.path("payload").path("streamed").asBoolean()).isTrue();
+                    var accumulated=json.createArrayNode();
+                    for(int offset=0;offset<5000;offset+=50){
+                        JsonNode packet;do{packet=batchInbox.next();}while(packet.path("type").asString().equals("pong"));
+                        assertThat(packet.path("type").asString()).isEqualTo("point_batch");
+                        assertThat(packet.path("payload").path("offset").asInt()).isEqualTo(offset);
+                        assertThat(packet.path("payload").path("positions").size()).isEqualTo(50);
+                        assertThat(packet.path("baseSequence").asLong()).isEqualTo(announcement.path("sequence").asLong());
+                        packet.path("payload").path("positions").forEach(accumulated::add);
+                    }
+                    assertThat(accumulated).isEqualTo(cloud.path("positions"));
                     socket.abort();inbox=new Inbox();socket=connect(ticket(token),"http://localhost:5173",inbox);subscribe(socket,id);
                     JsonNode snapshot=inbox.next();assertThat(snapshot.path("type").asString()).isEqualTo("task_snapshot");assertThat(snapshot.path("payload").path("latestPreview").path("version").asInt()).isEqualTo(1);
                     lastSequence=snapshot.path("sequence").asLong();stages.add(snapshot.path("stage").asString());reconnected=true;
@@ -105,8 +122,8 @@ class BrowserWebSocketLiveTests {
             assertThat(model.statusCode()).isEqualTo(200);assertThat(model.body().length).isGreaterThan(1000);
             assertThat(java.nio.ByteBuffer.wrap(model.body()).order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt()).isEqualTo(0x46546c67);
             subscribe(socket,id);assertThat(inbox.next().path("payload").path("status").asString()).isEqualTo("SUCCEEDED");
-            System.out.println("REAL_BROWSER_WS_SUCCESS task="+id+" asset="+assetId+" modelBytes="+model.body().length+" points=5000 reconnect=true stages="+stages+" types="+types);
-        }finally{socket.abort();}
+            System.out.println("REAL_BROWSER_WS_SUCCESS task="+id+" asset="+assetId+" modelBytes="+model.body().length+" points=5000 batches=100 batchSize=50 reconnect=true stages="+stages+" types="+types);
+        }finally{socket.abort();if(batchSocket!=null)batchSocket.abort();}
     }
     private final class Inbox implements WebSocket.Listener{
         final BlockingQueue<JsonNode> messages=new LinkedBlockingQueue<>();final CompletableFuture<Integer> closed=new CompletableFuture<>();final StringBuilder parts=new StringBuilder();

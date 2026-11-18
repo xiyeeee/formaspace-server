@@ -71,6 +71,32 @@ class BrowserWebSocketMysqlTests {
         GenerationTaskEntity task=mapper.selectById(id);task.setExecutionMode("PYTHON_REALTIME");task.setSimulated(false);task.setStatus(GenerationStatus.PROCESSING);task.setTotalSteps(30);task.setCompletedSteps(0);task.setInferenceStage("preprocessing");task.setConnectionState("CONNECTED");mapper.updateById(task);return task;
     }
     private void subscribe(WebSocket socket,long id){socket.sendText("{\"protocolVersion\":1,\"type\":\"subscribe\",\"taskId\":\""+id+"\"}",true).join();}
+    @Test void pointBatchesMatchPersistedHttpPreviewAndReconnectSnapshot()throws Exception{
+        UserEntity owner=user();String ownerToken=token(owner);GenerationTaskEntity task=task(owner);
+        Inbox inbox=new Inbox();WebSocket socket=connect(ticket(ownerToken),"http://localhost:5173",inbox);
+        try{
+            socket.sendText("{\"protocolVersion\":1,\"type\":\"subscribe\",\"taskId\":\""+task.getId()+"\",\"pointBatches\":true}",true).join();
+            assertThat(inbox.next().path("type").asString()).isEqualTo("task_snapshot");
+            var points=java.util.stream.IntStream.range(0,5000).mapToObj(index->List.of(index*.0001,(4999-index)*.0001,0.)).toList();
+            previews.save(task.getId(),new PythonRealtimeProtocol.PointCloud(1,24,5000,points));
+            task=mapper.selectById(task.getId());task.setCompletedSteps(24);task.setInferenceStage("sampling");mapper.updateById(task);
+            events.publish(task.getId(),"preview_ready",28);
+            var announcement=inbox.next();assertThat(announcement.path("payload").path("streamed").asBoolean()).isTrue();
+            var positions=json.createArrayNode();
+            for(int offset=0;offset<5000;offset+=50){
+                var batch=inbox.next();assertThat(batch.path("type").asString()).isEqualTo("point_batch");
+                assertThat(batch.path("baseSequence").asLong()).isEqualTo(announcement.path("sequence").asLong());
+                assertThat(batch.path("payload").path("offset").asInt()).isEqualTo(offset);
+                batch.path("payload").path("positions").forEach(positions::add);
+            }
+            String path=announcement.path("payload").path("positionsPath").asString();
+            var response=http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+path)).header("Authorization","Bearer "+ownerToken).build(),HttpResponse.BodyHandlers.ofString());
+            assertThat(response.statusCode()).isEqualTo(200);assertThat(json.readTree(response.body()).path("data").path("positions")).isEqualTo(positions);
+            socket.abort();inbox=new Inbox();socket=connect(ticket(ownerToken),"http://localhost:5173",inbox);subscribe(socket,task.getId());
+            var recovered=inbox.next();assertThat(recovered.path("type").asString()).isEqualTo("task_snapshot");
+            assertThat(recovered.path("payload").path("latestPreview").path("pointCount").asInt()).isEqualTo(5000);
+        }finally{socket.abort();}
+    }
     @Test void nativeTicketHandshakeSnapshotOwnershipProgressAndFullPointCloud()throws Exception{
         UserEntity owner=user(),other=user();String ownerToken=token(owner);GenerationTaskEntity task=task(owner);
         String ticket=ticket(ownerToken);Inbox inbox=new Inbox();WebSocket socket=connect(ticket,"http://localhost:5173",inbox);

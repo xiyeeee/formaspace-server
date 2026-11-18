@@ -356,3 +356,38 @@ V1～V5 不修改。业务库重启更新后的 Java 后自动迁移。单实例
 ```
 
 显式设置 BROWSER_WS_TEST_DB_URL/USERNAME/PASSWORD 后运行 BrowserWebSocketMysqlTests；库名必须以 _test 结尾。真实模型验收另需 BROWSER_LIVE_TEST_DB_URL/USERNAME/PASSWORD、INFERENCE_API_TOKEN、BROWSER_LIVE_IMAGE，然后运行 BrowserWebSocketLiveTests。测试仅使用独立测试库，默认未设置条件时集成测试跳过，不会自动启动或停止 Python 服务。
+
+## 13. 每批 50 点的打印预览（2026-11-18）
+
+原生 WS 订阅可增加布尔字段 `pointBatches: true`。未设置的客户端保持原来的完整点云事件。
+
+启用后，`preview_ready` 仍是有 sequence 的业务事件，payload 不带 positions，增加 `streamed: true`、`batchSize: 50`、`bounds: {minimum: [x,y,z], maximum: [x,y,z]}`，保留 sourceStep、pointCount、positionsPath、decodeSeconds。包围盒覆盖完整点云，前端应据此固定展示坐标变换。
+
+随后按顺序发送 `point_batch` 控制帧：
+
+```json
+{
+  "protocolVersion": 1,
+  "type": "point_batch",
+  "taskId": "123",
+  "baseSequence": 12,
+  "previewVersion": 1,
+  "payload": {
+    "sourceStep": 24,
+    "totalPointCount": 5000,
+    "offset": 0,
+    "pointCount": 50,
+    "positions": [[0.1, 0.2, 0.3]]
+  }
+}
+```
+
+示例 positions 省略其余 49 点；实际数组长度始终等于 pointCount。最后一批允许少于 50 点。控制帧没有 sequence，不推进业务序号；baseSequence 指向声明该预览的 preview_ready。offset 从 0 开始，稳定点标识可用 offset + 批内索引。
+
+Java 在持久化前按 Y 高度分层、Z 分行、X 蛇形排序，仅改变点顺序，保留坐标和重复点。HTTP 完整恢复与 WS 批次使用同一顺序。客户端按版本、baseSequence、sourceStep 校验，匹配重复批次可忽略，出现缺口、冲突或超时则通过 HTTP 恢复完整点云。重连继续使用快照 + HTTP，不重放旧批次。
+
+每个预览只入队一个发送任务，在其中顺序发送声明和所有批次，避免 100 个批次占满 8 槽发送队列。每帧发送前检查订阅与凭据有效性；慢客户端仍按既有策略关闭并恢复。发送过程不 sleep、不接触 GPU；前端自行控制打印动画速度。
+
+Python 保持完整预览接口，在真实解码完成前不会发送伪造粒子。前端已实现打印头、平台、逐点显示、减少动效和 HTTP 降级，详见前端 docs/point-printing.md。
+
+本次验证：默认 Maven 183 项（159 通过、24 条件跳过），独立 MySQL/原生 WS 4 项通过。额外真实 mini/MPS 联调通过：5000 点拆为 100 批，每批 50，完整旧协议、HTTP 文件和新批次坐标一致，最终 GLB 7,158,596 字节，重连通过。真实模型日志：/tmp/formaspace-point-batches-real-live.log。另有 Chromium 受控 HTTP/WS 界面测试验证打印头、逐点累积、重复/缺批/超时恢复与最终模型切换；不将其表述为真实模型的端到端浏览器验收。

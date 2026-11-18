@@ -28,7 +28,7 @@ public class GenerationPreviewService {
     }
     public void save(long taskId,PythonRealtimeProtocol.PointCloud cloud) throws IOException {
         if (previews.find(taskId,cloud.previewVersion())!=null) { previews.markStored(taskId,cloud.previewVersion());return; }
-        var view=new PreviewVO(Long.toString(taskId),cloud.previewVersion(),cloud.sourceStep(),cloud.pointCount(),cloud.positions());
+        var view=new PreviewVO(Long.toString(taskId),cloud.previewVersion(),cloud.sourceStep(),cloud.pointCount(),PointCloudPrintPlan.order(cloud.positions()));
         var stored=storage.save(new ByteArrayInputStream(json.writeValueAsBytes(view)),"json",2097152);
         var attempted=new java.util.concurrent.atomic.AtomicBoolean();
         try {

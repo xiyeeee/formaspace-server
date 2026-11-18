@@ -64,11 +64,12 @@ public class GenerationWebSocketHandler extends TextWebSocketHandler {
             long id=Long.parseLong(raw);
             if(type.equals("unsubscribe")){synchronized(subscriptionsLock){synchronized(peer){if(Objects.equals(peer.taskId,id)){peer.taskId=null;peer.epoch++;peer.sender.getQueue().clear();}}}return;}
             if(!type.equals("subscribe"))throw new IllegalArgumentException();
+            if(node.has("pointBatches") && !node.path("pointBatches").isBoolean())throw new IllegalArgumentException();
             synchronized(store.lock(id)){
                 Frame snapshot=store.snapshot(id,peer.principal.userId());
                 synchronized(subscriptionsLock){
                     if(peer.taskId==null && peers.values().stream().filter(value->value.taskId!=null).count()>=32){error(peer,raw,"SUBSCRIPTION_LIMIT","订阅容量已满，请稍后重试");return;}
-                    synchronized(peer){peer.epoch++;peer.taskId=id;peer.sequence=snapshot.sequence();peer.connectionState=snapshot.view().connectionState();peer.sender.getQueue().clear();peer.offer(encode(snapshot),id,peer.epoch);}
+                    synchronized(peer){peer.epoch++;peer.taskId=id;peer.pointBatches=node.path("pointBatches").asBoolean(false);peer.sequence=snapshot.sequence();peer.connectionState=snapshot.view().connectionState();peer.sender.getQueue().clear();peer.offer(encode(snapshot),id,peer.epoch);}
                 }
             }
         }catch(BusinessException exception){error(peer,null,"TASK_NOT_FOUND","任务不存在或不可访问");}
@@ -84,14 +85,34 @@ public class GenerationWebSocketHandler extends TextWebSocketHandler {
             if(event.fatal())frame=new Frame(frame.view(),frame.sequence(),frame.type(),frame.timestamp(),true);
             String message;
             try{message=encode(frame);}catch(Exception exception){return;}
+            List<String> batches=frame.type().equals("preview_ready") && peers.values().stream().anyMatch(peer->peer.pointBatches && Objects.equals(peer.taskId,event.taskId()))
+                    ? pointBatchFrames(frame,message) : null;
             for(Peer peer:peers.values())synchronized(peer){
                 if(!Objects.equals(peer.taskId,event.taskId()) || peer.principal.userId()!=frame.view().userId())continue;
                 if(frame.type().equals("connection_status")){
                     if(Objects.equals(peer.connectionState,frame.view().connectionState()))continue;
                     peer.connectionState=frame.view().connectionState();peer.offer(message,peer.taskId,peer.epoch);
-                }else if(frame.sequence()>peer.sequence){peer.sequence=frame.sequence();peer.offer(message,peer.taskId,peer.epoch);}
+                }else if(frame.sequence()>peer.sequence){peer.sequence=frame.sequence();
+                    if(peer.pointBatches && batches!=null)peer.offer(batches,peer.taskId,peer.epoch);
+                    else peer.offer(message,peer.taskId,peer.epoch);
+                }
             }
         }} catch(RuntimeException exception){log.warn("Browser event deferred: taskId={}, type={}",event.taskId(),exception.getClass().getSimpleName());}
+    }
+    private List<String> pointBatchFrames(Frame frame,String message){
+        var cloud=previews.read(frame.view().id(),frame.view().latestPreview().version(),frame.view().userId());
+        var envelope=(tools.jackson.databind.node.ObjectNode)json.readTree(message);
+        var payload=(tools.jackson.databind.node.ObjectNode)envelope.path("payload");
+        payload.remove("positions");payload.put("streamed",true);payload.put("batchSize",PointCloudPrintPlan.BATCH_SIZE);
+        payload.set("bounds",json.valueToTree(PointCloudPrintPlan.bounds(cloud.positions())));
+        List<String> frames=new ArrayList<>();frames.add(json.writeValueAsString(envelope));
+        for(var batch:PointCloudPrintPlan.batches(cloud.positions())){
+            frames.add(json.writeValueAsString(Map.of("protocolVersion",1,"type","point_batch","taskId",cloud.taskId(),
+                    "baseSequence",frame.sequence(),"previewVersion",cloud.previewVersion(),
+                    "payload",Map.of("sourceStep",cloud.sourceStep(),"totalPointCount",cloud.pointCount(),
+                            "offset",batch.offset(),"pointCount",batch.positions().size(),"positions",batch.positions()))));
+        }
+        return List.copyOf(frames);
     }
     private String encode(Frame frame){
         View view=frame.view();Map<String,Object> envelope=new LinkedHashMap<>();
@@ -136,14 +157,20 @@ public class GenerationWebSocketHandler extends TextWebSocketHandler {
         private final WebSocketSession session;private final WsPrincipal principal;
         private final ThreadPoolExecutor sender;private final AtomicBoolean closing=new AtomicBoolean();
         private volatile Long taskId;private volatile long epoch,sequence;private volatile Instant lastActivity;
-        private volatile String connectionState;private ScheduledFuture<?> expiry;private long rateSecond;private int messages,invalid;
+        private volatile String connectionState;private volatile boolean pointBatches;private ScheduledFuture<?> expiry;private long rateSecond;private int messages,invalid;
         private Peer(WebSocketSession session,WsPrincipal principal){this.session=session;this.principal=principal;lastActivity=clock.instant();
             sender=new ThreadPoolExecutor(1,1,0,TimeUnit.SECONDS,new ArrayBlockingQueue<>(8),runnable->{Thread thread=new Thread(runnable,"browser-ws-send");thread.setDaemon(true);return thread;},new ThreadPoolExecutor.AbortPolicy());}
         private void offer(String text,Long task,long subscriptionEpoch){
+            offer(List.of(text),task,subscriptionEpoch);
+        }
+        private void offer(List<String> frames,Long task,long subscriptionEpoch){
             if(closing.get())return;
-            try{sender.execute(()->{if(closing.get())return;if(!principal.jwtExpiry().isAfter(clock.instant())){remove(this,4001);return;}
+            // One bounded sender job per preview; never enqueue 100 independent jobs or sleep the inference worker.
+            try{sender.execute(()->{for(String text:frames){
+                if(closing.get())return;if(!principal.jwtExpiry().isAfter(clock.instant())){remove(this,4001);return;}
                 if(task!=null && (!Objects.equals(taskId,task)||epoch!=subscriptionEpoch))return;
-                try{session.sendMessage(new TextMessage(text));}catch(Exception exception){remove(this,1013);}
+                try{session.sendMessage(new TextMessage(text));}catch(Exception exception){remove(this,1013);return;}
+            }
             });}catch(RejectedExecutionException exception){if(closing.compareAndSet(false,true))maintenance.execute(()->remove(this,1013));}
         }
         private void stop(){closing.set(true);if(expiry!=null)expiry.cancel(false);sender.shutdownNow();taskId=null;}
