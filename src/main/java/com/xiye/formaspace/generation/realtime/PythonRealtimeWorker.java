@@ -190,18 +190,10 @@ public class PythonRealtimeWorker {
         if (event!=null && event.type().equals("preview_failed")) task.setPreviewErrorCode("PREVIEW_DECODE_FAILED");
         if (state.status().equals("completed")) { task.setRemoteResultReference(task.getInferenceTaskId());task.setInferenceStage("saving_result"); }
         if (!save(task)) return;
-        // An equal-sequence snapshot still retries any preview whose file has not been committed.
+        // Recover every retained version, including intermediate versions missed while disconnected.
         if (state.previewVersion()>task.getStoredPreviewVersion()) {
             try {
-                var cloud = event!=null && event.type().equals("preview_ready")
-                        ? protocol.points(event.payload(),task.getInferenceTaskId(),state.previewVersion(),task.getTotalSteps(),true)
-                        : protocol.points(client.preview(task.getInferenceTaskId(),state.previewVersion()),task.getInferenceTaskId(),state.previewVersion(),task.getTotalSteps(),false);
-                var parameters=json.readValue(task.getPythonParameters(),PythonTaskParameters.class);
-                PythonRealtimeProtocol.require(parameters.previewEnabled() && cloud.sourceStep()==parameters.previewStep() && cloud.sourceStep()<=state.completedSteps()
-                        && cloud.pointCount()==parameters.pointCount());
-                previews.save(task.getId(),cloud);task.setStoredPreviewVersion(cloud.previewVersion());
-                if(event!=null && event.type().equals("preview_ready") && event.payload().path("decodeSeconds").isNumber())
-                    previews.recordDecodeSeconds(task.getId(),cloud.previewVersion(),event.payload().path("decodeSeconds").asDouble());
+                storePreviews(task,state.previewVersion(),state.completedSteps(),state.sequence(),event);
             } catch (IOException | RuntimeException exception) {
                 log.warn("Python preview save deferred: taskId={}, version={}, type={}",task.getId(),state.previewVersion(),exception.getClass().getSimpleName());
             }
@@ -236,14 +228,30 @@ public class PythonRealtimeWorker {
             log.warn("Python result publication deferred: taskId={}, type={}",task.getId(),exception.getClass().getSimpleName());
         }
     }
+    private void storePreviews(GenerationTaskEntity task,int latestVersion,int completedSteps,long sourceSequence,
+            PythonRealtimeProtocol.Event event) throws IOException {
+        PythonTaskParameters parameters=json.readValue(task.getPythonParameters(),PythonTaskParameters.class);
+        int maximumVersions=parameters.previewStages()==null?1:parameters.previewStages().size();
+        PythonRealtimeProtocol.require(latestVersion<=maximumVersions);
+        for(int version=1;version<=latestVersion;version++) {
+            if(previews.latest(task.getId(),version)!=null)continue;
+            PythonRealtimeProtocol.PointCloud cloud=event!=null && event.type().equals("preview_ready") && version==latestVersion
+                    ? protocol.points(event.payload(),task.getInferenceTaskId(),version,task.getTotalSteps(),true)
+                    : protocol.points(client.preview(task.getInferenceTaskId(),version),task.getInferenceTaskId(),version,task.getTotalSteps(),false);
+            parameters.validatePreview(cloud);
+            PythonRealtimeProtocol.require(cloud.sourceStep()<=completedSteps);
+            GenerationPreviewService.PreviewMetadata previous=previews.latest(task.getId(),version-1);
+            PythonRealtimeProtocol.require(previous==null || previous.sourceStep()<cloud.sourceStep());
+            previews.save(task.getId(),cloud);task.setStoredPreviewVersion(cloud.previewVersion());
+            if(event!=null && event.type().equals("preview_ready") && version==latestVersion
+                    && event.payload().path("decodeSeconds").isNumber())
+                previews.recordDecodeSeconds(task.getId(),version,event.payload().path("decodeSeconds").asDouble());
+            events.publish(task.getId(),"preview_ready",sourceSequence);
+        }
+    }
     private void repairPreview(GenerationTaskEntity task) {
         try {
-            var cloud=protocol.points(client.preview(task.getInferenceTaskId(),task.getPythonPreviewVersion()),
-                    task.getInferenceTaskId(),task.getPythonPreviewVersion(),task.getTotalSteps(),false);
-            var parameters=json.readValue(task.getPythonParameters(),PythonTaskParameters.class);
-            PythonRealtimeProtocol.require(parameters.previewEnabled() && cloud.sourceStep()==parameters.previewStep()
-                    && cloud.pointCount()==parameters.pointCount());
-            previews.save(task.getId(),cloud);events.publish(task.getId(),"preview_ready",task.getLastPythonSequence());
+            storePreviews(task,task.getPythonPreviewVersion(),task.getCompletedSteps(),task.getLastPythonSequence(),null);
         } catch (IOException | RuntimeException exception) {
             int failures=Math.min(20,task.getQueryFailures()==null?0:task.getQueryFailures());
             long delay=Math.min(config.getReconnectMaxDelay().toMillis(),config.getReconnectInitialDelay().toMillis()*(1L<<failures));

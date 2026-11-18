@@ -88,6 +88,24 @@ class PythonRealtimeWorkerTests {
         assertThat(task.getStatus()).isEqualTo(GenerationStatus.PROCESSING);assertThat(task.getInferenceStage()).isEqualTo("final_decoding");
         verifyNoInteractions(results);
     }
+    @Test void disconnectedSnapshotRecoversEveryVersionAgainstPersistedStagePlan() throws Exception {
+        List<PythonTaskParameters.PreviewStage> stages=List.of(new PythonTaskParameters.PreviewStage(12,64,1000),
+                new PythonTaskParameters.PreviewStage(18,96,2500),new PythonTaskParameters.PreviewStage(24,128,5000));
+        task.setPythonParameters(json.writeValueAsString(new PythonTaskParameters(1234,30,5,256,true,24,128,5000,4000,stages)));
+        when(client.snapshot(anyString())).thenReturn(fixture.state("running",40,30,3));
+        for(int version=1;version<=3;version++) {
+            tools.jackson.databind.node.ObjectNode cloud=(tools.jackson.databind.node.ObjectNode)json.valueToTree(fixture.preview());
+            PythonTaskParameters.PreviewStage stage=stages.get(version-1);
+            cloud.put("previewVersion",version);cloud.put("sourceStep",stage.step());cloud.put("pointCount",stage.pointCount());
+            tools.jackson.databind.node.ArrayNode positions=json.createArrayNode();
+            for(int index=0;index<stage.pointCount();index++)positions.add(json.valueToTree(List.of(0.1,0.2,0.3)));
+            cloud.set("positions",positions);when(client.preview(task.getInferenceTaskId(),version)).thenReturn(cloud);
+        }
+        worker.tick();verify(previews,timeout(3000).times(3)).save(eq(7L),any());worker.close();
+        verify(client).preview(task.getInferenceTaskId(),1);verify(client).preview(task.getInferenceTaskId(),2);
+        verify(client).preview(task.getInferenceTaskId(),3);assertThat(task.getStoredPreviewVersion()).isEqualTo(3);
+        verifyNoInteractions(results);
+    }
     @Test void pythonRestartFailsTaskWhileRetainingStoredPreview() throws Exception {
         task.setStoredPreviewVersion(1);task.setPythonPreviewVersion(1);
         when(client.snapshot(anyString())).thenReturn(fixture.state("failed",40,24,1));

@@ -52,7 +52,7 @@ public class PythonRealtimeClient implements ModelInferenceClient {
             if (duration.toMillis()<1) throw new IllegalStateException("实时服务超时和重试间隔必须为正数");
         }
         if (config.getReconnectInitialDelay().compareTo(config.getReconnectMaxDelay())>0
-                || (config.isPreviewEnabled() && config.getPreviewStep()>=config.getSteps())
+                || (config.isPreviewEnabled() && !config.isMultiStagePreview() && config.getPreviewStep()>=config.getSteps())
                 || !Set.of(128,256).contains(config.getFinalResolution()) || !Set.of(64,128).contains(config.getPreviewResolution()))
             throw new IllegalStateException("实时服务预览步数或退避配置不合法");
         serviceKey = serviceKey(config);

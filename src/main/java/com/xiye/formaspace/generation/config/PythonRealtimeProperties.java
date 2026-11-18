@@ -30,6 +30,7 @@ public class PythonRealtimeProperties {
     @Min(128) @Max(256) private int finalResolution = 256;
     @Min(1000) @Max(8000) private int numChunks = 4000;
     private boolean previewEnabled = true;
+    private boolean multiStagePreview = true;
     @Min(1) @Max(49) private int previewStep = 24;
     @Min(64) @Max(128) private int previewResolution = 128;
     @Min(1) @Max(5000) private int pointCount = 5000;

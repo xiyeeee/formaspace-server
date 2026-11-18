@@ -76,7 +76,7 @@ class BrowserWebSocketLiveTests {
         long id=Long.parseLong(tasks.create(owner.getId(),UUID.randomUUID().toString(),request).task().id());
         Inbox inbox=new Inbox();WebSocket socket=connect(ticket(token),"http://localhost:5173",inbox);
         Inbox batchInbox=new Inbox();WebSocket batchSocket=null;
-        Set<String> types=new HashSet<>(),stages=new HashSet<>();JsonNode cloud=null,completed=null;boolean reconnected=false;long lastSequence=0,lastPing=0;
+        Set<Integer> versions=new HashSet<>();Set<String> types=new HashSet<>(),stages=new HashSet<>();JsonNode cloud=null,completed=null;boolean reconnected=false;long lastSequence=0,lastPing=0;
         long end=System.nanoTime()+Duration.ofMinutes(4).toNanos();
         try{
             subscribe(socket,id);JsonNode first=inbox.next();assertThat(first.path("type").asString()).isEqualTo("task_snapshot");lastSequence=first.path("sequence").asLong();
@@ -93,12 +93,16 @@ class BrowserWebSocketLiveTests {
                 if(frame.has("sequence")){assertThat(frame.path("sequence").asLong()).isGreaterThan(lastSequence);lastSequence=frame.path("sequence").asLong();}
                 assertThat(type).isNotEqualTo("task_failed");assertThat(type).isNotEqualTo("error");
                 if(type.equals("result_saving"))assertThat(mapper.selectById(id).getStatus()).isEqualTo(GenerationStatus.PROCESSING);
-                if(type.equals("preview_ready") && !reconnected){
-                    cloud=frame.path("payload");assertThat(cloud.path("positions").size()).isEqualTo(5000);assertThat(cloud.path("sourceStep").asInt()).isEqualTo(24);
+                if(type.equals("preview_ready")){
+                    int version=frame.path("previewVersion").asInt();versions.add(version);
+                    int expectedPoints=List.of(1000,2500,5000).get(version-1);
+                    int expectedStep=List.of(12,18,24).get(version-1);
+                    cloud=frame.path("payload");assertThat(cloud.path("positions").size()).isEqualTo(expectedPoints);
+                    assertThat(cloud.path("sourceStep").asInt()).isEqualTo(expectedStep);
                     JsonNode announcement;do{announcement=batchInbox.next();}while(!announcement.path("type").asString().equals("preview_ready"));
                     assertThat(announcement.path("payload").path("streamed").asBoolean()).isTrue();
-                    var accumulated=json.createArrayNode();
-                    for(int offset=0;offset<5000;offset+=50){
+                    tools.jackson.databind.node.ArrayNode accumulated=json.createArrayNode();
+                    for(int offset=0;offset<expectedPoints;offset+=50){
                         JsonNode packet;do{packet=batchInbox.next();}while(packet.path("type").asString().equals("pong"));
                         assertThat(packet.path("type").asString()).isEqualTo("point_batch");
                         assertThat(packet.path("payload").path("offset").asInt()).isEqualTo(offset);
@@ -107,22 +111,30 @@ class BrowserWebSocketLiveTests {
                         packet.path("payload").path("positions").forEach(accumulated::add);
                     }
                     assertThat(accumulated).isEqualTo(cloud.path("positions"));
+                    if(!reconnected){
                     socket.abort();inbox=new Inbox();socket=connect(ticket(token),"http://localhost:5173",inbox);subscribe(socket,id);
                     JsonNode snapshot=inbox.next();assertThat(snapshot.path("type").asString()).isEqualTo("task_snapshot");assertThat(snapshot.path("payload").path("latestPreview").path("version").asInt()).isEqualTo(1);
                     lastSequence=snapshot.path("sequence").asLong();stages.add(snapshot.path("stage").asString());reconnected=true;
+                    }
                     String path=cloud.path("positionsPath").asString();HttpResponse<String> restored=http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+path)).header("Authorization","Bearer "+token).build(),HttpResponse.BodyHandlers.ofString());
                     assertThat(restored.statusCode()).isEqualTo(200);assertThat(json.readTree(restored.body()).path("data").path("positions")).isEqualTo(cloud.path("positions"));
                 }
                 if(type.equals("task_completed")){completed=frame;break;}
             }
+            assertThat(versions).containsExactlyInAnyOrder(1,2,3);
             assertThat(completed).isNotNull();assertThat(reconnected).isTrue();assertThat(types).contains("sampling_step","preview_ready","result_saving","task_completed");
             assertThat(completed.path("payload").path("status").asString()).isEqualTo("SUCCEEDED");String assetId=completed.path("payload").path("assetId").asString();
             assertThat(tasks.detail(id,owner.getId()).assetId()).isEqualTo(assetId);
             HttpResponse<byte[]> model=http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/assets/"+assetId+"/model")).header("Authorization","Bearer "+token).build(),HttpResponse.BodyHandlers.ofByteArray());
             assertThat(model.statusCode()).isEqualTo(200);assertThat(model.body().length).isGreaterThan(1000);
             assertThat(java.nio.ByteBuffer.wrap(model.body()).order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt()).isEqualTo(0x46546c67);
+            for(int version=1;version<=3;version++) {
+                GenerationPreviewService.PreviewVO retained=previews.read(id,version,owner.getId());
+                assertThat(retained.pointCount()).isEqualTo(List.of(1000,2500,5000).get(version-1));
+                assertThat(retained.sourceStep()).isEqualTo(List.of(12,18,24).get(version-1));
+            }
             subscribe(socket,id);assertThat(inbox.next().path("payload").path("status").asString()).isEqualTo("SUCCEEDED");
-            System.out.println("REAL_BROWSER_WS_SUCCESS task="+id+" asset="+assetId+" modelBytes="+model.body().length+" points=5000 batches=100 batchSize=50 reconnect=true stages="+stages+" types="+types);
+            System.out.println("REAL_BROWSER_WS_SUCCESS task="+id+" asset="+assetId+" modelBytes="+model.body().length+" versions=3 stages=12/18/24 points=1000/2500/5000 batchSize=50 reconnect=true stages="+stages+" types="+types);
         }finally{socket.abort();if(batchSocket!=null)batchSocket.abort();}
     }
     private final class Inbox implements WebSocket.Listener{

@@ -101,6 +101,7 @@ class PythonRealtimeProtocolTests {
         config.getPythonRealtime().setToken("");
         assertThatThrownBy(()->new PythonRealtimeClient(config,server.json,protocol)).isInstanceOf(IllegalStateException.class);
         config.getPythonRealtime().setToken(PythonRealtimeFixture.TOKEN);config.getPythonRealtime().setSteps(24);
+        config.getPythonRealtime().setMultiStagePreview(false);
         assertThatThrownBy(()->new PythonRealtimeClient(config,server.json,protocol)).isInstanceOf(IllegalStateException.class);
     }
     @Test void fullBusinessQueueDisconnectsInsteadOfAccumulatingMessages() {

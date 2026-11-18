@@ -97,6 +97,7 @@ formaspace:
       final-resolution: ${REALTIME_FINAL_RESOLUTION:256}
       num-chunks: ${REALTIME_NUM_CHUNKS:4000}
       preview-enabled: ${REALTIME_PREVIEW_ENABLED:true}
+      multi-stage-preview: ${REALTIME_MULTI_STAGE_PREVIEW:true}
       preview-step: ${REALTIME_PREVIEW_STEP:24}
       preview-resolution: ${REALTIME_PREVIEW_RESOLUTION:128}
       point-count: ${REALTIME_POINT_COUNT:5000}
